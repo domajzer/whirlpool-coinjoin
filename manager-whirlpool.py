@@ -105,7 +105,7 @@ def build_and_run_maven_container():
         MAVEN_IMAGE_TAG,
         detach=True,
         name=MAVEN_CONTAINER_NAME,
-        ports={'8081/tcp': 8081},
+        ports={'8080/tcp': 8080},
         network='bridge',
         remove=True
     )
@@ -179,7 +179,6 @@ def build_and_run_sparrow_container(maven_ip):
         detach=True,
         name=SPARROW_CONTAINER_NAME,
         network=NETWORK_NAME,
-        environment={'MAVEN_SERVICE_ADDRESS': f"{maven_ip}:8081"},
         remove=True,
         tty=True,
         privileged=True
@@ -191,6 +190,18 @@ def build_and_run_sparrow_container(maven_ip):
 def get_container_ip(container_name):
     container = docker_client.containers.get(container_name)
     return container.attrs['NetworkSettings']['Networks'][NETWORK_NAME]['IPAddress']
+
+def setup_socat_in_container(container_name, maven_ip):
+    container = docker_client.containers.get(container_name)
+    cmd = f"socat TCP-LISTEN:8080,fork TCP:{maven_ip}:8080"
+    try:
+        result = container.exec_run(cmd, detach=True)
+        if result.exit_code == 0:
+            print(f"Socat set up in {container_name} to forward traffic from 127.0.0.1:8080 to {maven_ip}:8080")
+        else:
+            print(f"Error in setting up socat: {result.output.decode('utf-8')}")
+    except Exception as e:
+        print(f"Exception setting up socat in container {container_name}: {e}")
 
 def main():
     bitcoin_container = build_and_run_bitcoin_container()
@@ -204,6 +215,7 @@ def main():
     time.sleep(5)
     sparrow_wallet = build_and_run_sparrow_container(maven_ip)
     time.sleep(5)
+    setup_socat_in_container(SPARROW_CONTAINER_NAME, maven_ip)
     input("Press Enter to stop all running containers...\n")
         
     for container in [bitcoin_container, mysql_container, python_container, maven_container,sparrow_wallet]:
