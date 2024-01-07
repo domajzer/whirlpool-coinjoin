@@ -4,6 +4,7 @@ import time
 import subprocess
 
 # Constants
+PROVISION_NUMBER = [i for i in range(1,5)]
 NETWORK_NAME = "whirlpool-net"
 MYSQL_IMAGE_TAG = "whirlpool-db"
 PYTHON_IMAGE_TAG = "whirlpool-db-init"
@@ -14,8 +15,11 @@ MAVEN_CONTAINER_NAME = "whirlpool-server"
 BITCOIN_IMAGE_TAG = "bitcoin-testnet-node"
 BITCOIN_CONTAINER_NAME = "bitcoin-testnet-node"
 SPARROW_IMAGE_TAG = "whirlpool-sparrow"
-SPARROW_CONTAINER_NAME = "whirlpool-sparrow"
+WALLETS_PATH = "whirlpool-sparrow-client/wallets"
 
+#INIT
+available_wallets = os.listdir(WALLETS_PATH)
+used_wallets = set()
 docker_client = docker.from_env()
 
 try:
@@ -166,25 +170,24 @@ def build_and_run_bitcoin_container():
     print(f"Container '{BITCOIN_CONTAINER_NAME}' started")
     return container
 
-def build_and_run_sparrow_container(maven_ip):
+def build_sparrow_container():
     print("Building Docker image for Whirlpool Sparrow Client")
     docker_client.images.build(
         path="./whirlpool-sparrow-client", tag=SPARROW_IMAGE_TAG, rm=True
     )
-    print("- Sparrow image built")
-    
-    print(f"Starting container '{SPARROW_CONTAINER_NAME}'")
+
+def run_sparrow_container(sparrow_container_name):
+    print(f"Starting container '{sparrow_container_name}'")
     sparrow_container = docker_client.containers.run(
         SPARROW_IMAGE_TAG,
         detach=True,
-        name=SPARROW_CONTAINER_NAME,
+        name=sparrow_container_name,
         network=NETWORK_NAME,
         remove=True,
         tty=True,
         privileged=True
     )
-    
-    print(f"Container '{SPARROW_CONTAINER_NAME}' started")
+    print(f"Container '{sparrow_container_name}' started")
     return sparrow_container
 
 def get_container_ip(container_name):
@@ -195,13 +198,31 @@ def setup_socat_in_container(container_name, maven_ip):
     container = docker_client.containers.get(container_name)
     cmd = f"socat TCP-LISTEN:8080,fork TCP:{maven_ip}:8080"
     try:
-        result = container.exec_run(cmd, detach=True)
-        if result.exit_code == 0:
-            print(f"Socat set up in {container_name} to forward traffic from 127.0.0.1:8080 to {maven_ip}:8080")
+        container.exec_run(cmd, detach=True)
+        print(f"Started socat in {container_name}.")
+
+        time.sleep(2)
+        
+        result = container.exec_run("ps aux | grep socat")
+        if "socat TCP-LISTEN" in result.output.decode():
+            print(f"Socat is running in {container_name}.")
         else:
-            print(f"Error in setting up socat: {result.output.decode('utf-8')}")
+            print(f"Failed to start socat in {container_name}.")
+            return False
+        return True
     except Exception as e:
         print(f"Exception setting up socat in container {container_name}: {e}")
+        return False
+
+def copy_wallet_to_container(container_name, wallet_file):
+    wallet_file_path = os.path.join(WALLETS_PATH, wallet_file)
+    destination_path = f"{container_name}:/root/.sparrow/testnet/wallets/"
+    
+    try:
+        subprocess.run(["docker", "cp", wallet_file_path, destination_path], check=True)
+        print(f"Copied {wallet_file} to container {container_name}")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to copy {wallet_file} to container {container_name}: {e}")
 
 def main():
     bitcoin_container = build_and_run_bitcoin_container()
@@ -213,15 +234,41 @@ def main():
     maven_container = build_and_run_maven_container()
     maven_ip = get_container_ip(MAVEN_CONTAINER_NAME)
     time.sleep(5)
-    sparrow_wallet = build_and_run_sparrow_container(maven_ip)
+    
+    build_sparrow_container()
     time.sleep(5)
-    setup_socat_in_container(SPARROW_CONTAINER_NAME, maven_ip)
-    input("Press Enter to stop all running containers...\n")
+    
+    wallet_containers = []
+    for wallet in PROVISION_NUMBER:
+        sparrow_container_name = f"{SPARROW_IMAGE_TAG}-{wallet}"
         
-    for container in [bitcoin_container, mysql_container, python_container, maven_container,sparrow_wallet]:
-        print(f"Stopping container '{container.name}'")
+        run_sparrow_container(sparrow_container_name)
+        setup_socat_in_container(sparrow_container_name, maven_ip)
+        
+        for wallet_file in available_wallets:
+            if wallet_file not in used_wallets:
+                print(f"Copying '{wallet_file} into '{sparrow_container_name}'")
+                copy_wallet_to_container(sparrow_container_name, wallet_file)
+                used_wallets.add(wallet_file)
+                break
+        
+        wallet_containers.append(sparrow_container_name)
+    
+    default_containers = ["bitcoin-testnet-node", "whirlpool-db", "whirlpool-server"]
+    
+    input("Press Enter to stop all running containers...\n")
+    for container_name  in wallet_containers:
+        print(f"Stopping wallet container '{container_name}'")
+        container = docker_client.containers.get(container_name)
         container.stop()
-        print(f"Container '{container.name}' stopped")
+        print(f"Wallet container '{container_name}' stopped")
+        
+    for container_name  in default_containers:
+        print(f"Stopping container '{container_name}'")
+        container = docker_client.containers.get(container_name)
+        container.stop(container)
+        print(f"Container '{container_name}' stopped")
 
 if __name__ == "__main__":
     main()
+    
