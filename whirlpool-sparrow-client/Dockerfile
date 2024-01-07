@@ -17,7 +17,7 @@ RUN tar -xzf sparrow-1.7.10-x86_64.tar.gz && \
     rm sparrow-1.7.10-x86_64.tar.gz
 
 COPY automation.py .
-RUN python3 automation.py
+CMD ["python3", "/usr/src/app/automation.py"]
 
 #CMD tmux new -d -s sparrow_session '/usr/src/app/Sparrow/bin/Sparrow --network testnet'; exec /bin/bash
 
