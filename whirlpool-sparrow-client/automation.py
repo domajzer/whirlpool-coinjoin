@@ -16,9 +16,13 @@ def main():
     start_tmux_with_app(tmux_session_name, sparrow_command)
     time.sleep(10)
     
-    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'Enter', 'P', 'Enter', 'U', 'Enter', 'Tab', 'Enter']
+    #initialize the wallet
+    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'Enter', 'Enter', 'Tab', 'Enter']
     send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes)
-    
+    #start premix 
+    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'P', 'Enter', 'U', 'Enter', 'Tab', 'Enter']
+    send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes)
+    #return to start after premix
     stop_start_mixing_keystrokes = ['Tab', 'Enter', 'Tab', 'Tab', 'Enter']
     send_keystroke_to_tmux(tmux_session_name, stop_start_mixing_keystrokes)
 
