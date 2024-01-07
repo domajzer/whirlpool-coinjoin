@@ -254,7 +254,7 @@ def main():
         
         wallet_containers.append(sparrow_container_name)
     
-    default_containers = ["bitcoin-testnet-node", "whirlpool-db", "whirlpool-server"]
+    default_containers = [BITCOIN_CONTAINER_NAME, MYSQL_CONTAINER_NAME, MAVEN_CONTAINER_NAME]
     
     input("Press Enter to stop all running containers...\n")
     for container_name  in wallet_containers:
@@ -266,9 +266,10 @@ def main():
     for container_name  in default_containers:
         print(f"Stopping container '{container_name}'")
         container = docker_client.containers.get(container_name)
-        container.stop(container)
+        container.stop()
         print(f"Container '{container_name}' stopped")
 
 if __name__ == "__main__":
     main()
+    
     
