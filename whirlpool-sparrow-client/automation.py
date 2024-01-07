@@ -26,5 +26,8 @@ def main():
     stop_start_mixing_keystrokes = ['Tab', 'Enter', 'Tab', 'Tab', 'Enter']
     send_keystroke_to_tmux(tmux_session_name, stop_start_mixing_keystrokes)
 
+    while(1):
+        time.sleep(1)
+
 if __name__ == '__main__':
     main()
