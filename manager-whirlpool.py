@@ -4,18 +4,19 @@ import time
 import subprocess
 
 # Constants
-PROVISION_NUMBER = [i for i in range(1,5)]
+PROVISION_NUMBER = [i for i in range(1,2)]
 NETWORK_NAME = "whirlpool-net"
 MYSQL_IMAGE_TAG = "whirlpool-db"
 PYTHON_IMAGE_TAG = "whirlpool-db-init"
 MAVEN_IMAGE_TAG = "whirlpool-server"
 MYSQL_CONTAINER_NAME = "whirlpool-db"
 PYTHON_CONTAINER_NAME = "whirlpool-db-init"
-MAVEN_CONTAINER_NAME = "whirlpool-server"
+WHIRLPOOL_SERVER_CONTAINER_NAME = "whirlpool-server"
 BITCOIN_IMAGE_TAG = "bitcoin-testnet-node"
 BITCOIN_CONTAINER_NAME = "bitcoin-testnet-node"
 SPARROW_IMAGE_TAG = "whirlpool-sparrow"
 WALLETS_PATH = "whirlpool-sparrow-client/wallets"
+MYSQL_VOLUME_NAME = "whirlpool-mysql-data"
 
 #INIT
 available_wallets = os.listdir(WALLETS_PATH)
@@ -58,10 +59,12 @@ def build_and_run_mysql_container():
         environment={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         ports={'3306/tcp': 3307},
         network=NETWORK_NAME,
-        remove=True
+        remove=True,
+        volumes={MYSQL_VOLUME_NAME: {'bind': '/var/lib/mysql', 'mode': 'rw'}}
     )
+    
     print(f"Container '{MYSQL_CONTAINER_NAME}' started")
-    time.sleep(30) 
+    time.sleep(20) 
     return mysql_container
 
 def build_and_run_python_container():
@@ -81,47 +84,47 @@ def build_and_run_python_container():
         remove=True
     )
     print(f"Container '{PYTHON_CONTAINER_NAME}' started")
-    time.sleep(15) 
+    time.sleep(10) 
     return python_container
 
 def build_and_run_maven_container():
-    print("Building Maven Docker image for Whirlpool Server")
+    print("Building Whrilpool-server Docker image for Whirlpool Server")
     docker_client.images.build(
         path="./coordinator-docker", dockerfile='Dockerfile.whirlpool', tag=MAVEN_IMAGE_TAG, rm=True
     )
-    print("- Maven image built")
+    print("- Whrilpool-server image built")
     try:
-        maven_container = docker_client.containers.get(MAVEN_CONTAINER_NAME)
+        maven_container = docker_client.containers.get(WHIRLPOOL_SERVER_CONTAINER_NAME)
         if maven_container.status == 'running':
-            print(f"Container '{MAVEN_CONTAINER_NAME}' is already running.")
+            print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' is already running.")
             return maven_container
         elif maven_container.status == 'exited':
-            print(f"Container '{MAVEN_CONTAINER_NAME}' has exited. Removing and starting a new one.")
+            print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' has exited. Removing and starting a new one.")
             maven_container.remove()
         else:
-            print(f"Container '{MAVEN_CONTAINER_NAME}' is in an unexpected state: {maven_container.status}.")
+            print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' is in an unexpected state: {maven_container.status}.")
             return maven_container
     except docker.errors.NotFound:
-        print(f"Container '{MAVEN_CONTAINER_NAME}' not found. Will create a new one.")
+        print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' not found. Will create a new one.")
 
-    print(f"Starting container '{MAVEN_CONTAINER_NAME}'")
+    print(f"Starting container '{WHIRLPOOL_SERVER_CONTAINER_NAME}'")
     maven_container = docker_client.containers.run(
         MAVEN_IMAGE_TAG,
         detach=True,
-        name=MAVEN_CONTAINER_NAME,
+        name=WHIRLPOOL_SERVER_CONTAINER_NAME,
         ports={'8080/tcp': 8080},
         network='bridge',
         remove=True
     )
-    print(f"Container '{MAVEN_CONTAINER_NAME}' started")
+    print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' started")
     default_bridge_network = docker_client.networks.get('bridge')
     default_bridge_network.disconnect(maven_container)
     
     FIXED_IP = "172.18.0.10"
     network.connect(maven_container, ipv4_address=FIXED_IP)
     
-    print(f"Container '{MAVEN_CONTAINER_NAME}' started with IP: {FIXED_IP}")
-    time.sleep(20)
+    print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' started with IP: {FIXED_IP}")
+    time.sleep(10)
     return maven_container
 
 def build_and_run_bitcoin_container():
@@ -168,6 +171,7 @@ def build_and_run_bitcoin_container():
         remove=True
     )
     print(f"Container '{BITCOIN_CONTAINER_NAME}' started")
+    time.sleep(20)
     return container
 
 def build_sparrow_container():
@@ -183,7 +187,7 @@ def run_sparrow_container(sparrow_container_name):
         detach=True,
         name=sparrow_container_name,
         network=NETWORK_NAME,
-        remove=True,
+        remove=False,
         tty=True,
         privileged=True
     )
@@ -201,10 +205,10 @@ def setup_socat_in_container(container_name, maven_ip):
         container.exec_run(cmd, detach=True)
         print(f"Started socat in {container_name}.")
 
-        time.sleep(2)
+        time.sleep(5)
         
-        result = container.exec_run("ps aux | grep socat")
-        if "socat TCP-LISTEN" in result.output.decode():
+        result = container.exec_run(["/bin/sh", "-c", "ps aux | grep socat"])
+        if "TCP-LISTEN" in result.output.decode():
             print(f"Socat is running in {container_name}.")
         else:
             print(f"Failed to start socat in {container_name}.")
@@ -224,15 +228,23 @@ def copy_wallet_to_container(container_name, wallet_file):
     except subprocess.CalledProcessError as e:
         print(f"Failed to copy {wallet_file} to container {container_name}: {e}")
 
+def copy_file_from_container(container_name, file_path_in_container, host_destination_path):
+    try:
+        subprocess.run(["docker", "cp", f"{container_name}:{file_path_in_container}", host_destination_path], check=True)
+        print(f"Copied {file_path_in_container} from {container_name} to {host_destination_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to copy file from {container_name}: {e}")
+
 def main():
-    bitcoin_container = build_and_run_bitcoin_container()
-    mysql_container = build_and_run_mysql_container()
+    build_and_run_bitcoin_container()
+    build_and_run_mysql_container()
     
     print("Waiting for MySQL container to initialize...")
-    python_container = build_and_run_python_container()
-        
+    build_and_run_python_container()
+    time.sleep(10)
     maven_container = build_and_run_maven_container()
-    maven_ip = get_container_ip(MAVEN_CONTAINER_NAME)
+    time.sleep(5)
+    maven_ip = get_container_ip(WHIRLPOOL_SERVER_CONTAINER_NAME)
     time.sleep(5)
     
     build_sparrow_container()
@@ -253,23 +265,33 @@ def main():
                 break
         
         wallet_containers.append(sparrow_container_name)
+        time.sleep(10)
     
-    default_containers = [BITCOIN_CONTAINER_NAME, MYSQL_CONTAINER_NAME, MAVEN_CONTAINER_NAME]
+    default_containers = [BITCOIN_CONTAINER_NAME, MYSQL_CONTAINER_NAME, WHIRLPOOL_SERVER_CONTAINER_NAME]
     
     input("Press Enter to stop all running containers...\n")
-    for container_name  in wallet_containers:
+    
+    maven_export_dir = "/app/logs"
+    mixs_file_path = f"{maven_export_dir}/mixs.csv"
+    activity_file_path = f"{maven_export_dir}/activity.csv"
+    
+    for container_name in wallet_containers:
         print(f"Stopping wallet container '{container_name}'")
         container = docker_client.containers.get(container_name)
         container.stop()
         print(f"Wallet container '{container_name}' stopped")
         
-    for container_name  in default_containers:
+    for container_name in default_containers:
         print(f"Stopping container '{container_name}'")
+        
+        if container_name == WHIRLPOOL_SERVER_CONTAINER_NAME:
+            copy_file_from_container(WHIRLPOOL_SERVER_CONTAINER_NAME, mixs_file_path, "coordinator-docker/logs")
+            copy_file_from_container(WHIRLPOOL_SERVER_CONTAINER_NAME, activity_file_path, "coordinator-docker/logs")
+
         container = docker_client.containers.get(container_name)
         container.stop()
         print(f"Container '{container_name}' stopped")
 
 if __name__ == "__main__":
     main()
-    
     
