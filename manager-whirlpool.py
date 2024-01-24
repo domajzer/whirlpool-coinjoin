@@ -84,7 +84,7 @@ def build_and_run_python_container():
         remove=True
     )
     print(f"Container '{PYTHON_CONTAINER_NAME}' started")
-    time.sleep(10) 
+    time.sleep(15) 
     return python_container
 
 def build_and_run_maven_container():
@@ -205,7 +205,7 @@ def setup_socat_in_container(container_name, maven_ip):
         container.exec_run(cmd, detach=True)
         print(f"Started socat in {container_name}.")
 
-        time.sleep(5)
+        time.sleep(3)
         
         result = container.exec_run(["/bin/sh", "-c", "ps aux | grep socat"])
         if "TCP-LISTEN" in result.output.decode():
@@ -235,21 +235,27 @@ def copy_file_from_container(container_name, file_path_in_container, host_destin
     except subprocess.CalledProcessError as e:
         print(f"Failed to copy file from {container_name}: {e}")
 
-def main():
+def build_logs_file(container_name):
+    try:
+        with open(f"whirlpool-sparrow-client/logs/{container_name}.txt", "w") as file:
+            subprocess.run(["docker", "logs", container_name], stdout=file, check=True)
+        print(f"Created a logfile of {container_name}")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to create a logfile of {container_name}: {e}")
+
+def main(): 
     build_and_run_bitcoin_container()
     build_and_run_mysql_container()
-    
+    time.sleep(80)
     print("Waiting for MySQL container to initialize...")
     build_and_run_python_container()
-    time.sleep(10)
-    maven_container = build_and_run_maven_container()
-    time.sleep(5)
+    build_and_run_maven_container()
+    time.sleep(7)
     maven_ip = get_container_ip(WHIRLPOOL_SERVER_CONTAINER_NAME)
-    time.sleep(5)
+    time.sleep(10)
     
     build_sparrow_container()
-    time.sleep(5)
-    
+
     wallet_containers = []
     for wallet in PROVISION_NUMBER:
         sparrow_container_name = f"{SPARROW_IMAGE_TAG}-{wallet}"
@@ -278,6 +284,7 @@ def main():
     for container_name in wallet_containers:
         print(f"Stopping wallet container '{container_name}'")
         container = docker_client.containers.get(container_name)
+        build_logs_file(container_name)
         container.stop()
         print(f"Wallet container '{container_name}' stopped")
         
