@@ -32,7 +32,8 @@ def start_tmux_with_app(session_name, app_command):
 def send_keystroke_to_tmux(session_name, keystrokes, options):
     for keystroke in keystrokes:
         subprocess.run(f"tmux send-keys -t {session_name} {keystroke}", shell=True)
-        time.sleep(2.5)
+        time.sleep(3.2)
+        #print(keystroke)
         if options.debugf:
             capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt')
 
@@ -64,7 +65,7 @@ def parse_seed(input_file, output_file):
                 if words:
                     seed_words.append(words)
             
-        seed = ' '.join(word.replace('|', '').strip() for word in seed_words)
+        seed = ' '.join(word.replace('│', '').strip() for word in seed_words)
         seed = re.sub(r' {2,}', '', seed)
         
         with open(output_file,'w') as output:
@@ -78,7 +79,7 @@ def parse_address(input_file):
         lines = contents.split('\n')
         for line in lines:
             if " Address " in line:
-                match = re.search(r'tb1[a-zA-Z0-9]{25,39}', line)
+                match = re.search(r'tb1[a-zA-Z0-9]{39,59}', line)
                 if match:
                     return match.group()
     return "No address found"
