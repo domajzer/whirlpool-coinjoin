@@ -59,27 +59,19 @@ def initialize_wallet(tmux_session_name, options):
         utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
         time.sleep(10)
 
-def add_to_pool(tmux_session_name, options, file_path):
-    #start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
-    is_defined = False
-    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter']
-    back_keystrokes = ['Tab', 'Enter', 'Tab', 'Tab', 'Enter']
-    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
-    
-    utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
+def check_for_init_UTXO(file_path, options, date_pattern,counter):
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
     if options.debug: 
         utility.print_tmux_screen('output.txt')
-    time.sleep(1.5)
-    
     try:
         with open(file_path, 'r') as file:
             content = file.read()
             
             if re.search(date_pattern, content):
                 print("\033[32mDate pattern found in content\033[0m")
+                return 0
                 
-            elif "Undefined" in content:
+            elif "Unconfirmed" in content:
                 for _ in range(25):
                     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
                     if options.debug: 
@@ -88,21 +80,52 @@ def add_to_pool(tmux_session_name, options, file_path):
                     with open(file_path, 'r') as file:
                         content = file.read()
                         
-                    if "Undefined" in content:
-                        time.sleep(25)
-                    else:
+                    if re.search(date_pattern, content):
+                        print("\033[32mDate pattern found in content\033[0m")
+                        return 0
+                    
+                    elif "Unconfirmed" not in content:
                         break
+                    
+                    else:
+                        time.sleep(25)
             
             else:
-                is_defined = True
-                print("\033[31mDate pattern not found in content\033[0m")
-                back_keystrokes = ['Tab', 'Enter', 'Tab', 'Tab', 'Enter']
+                print(f"{counter}\033[31mDate pattern not found in content. Waiting for input UXTO\033[0m")
+                if counter > 1:
+                    time.sleep(20)
+                    return check_for_init_UTXO(file_path, options, date_pattern, counter-1)
+                return 1
                 
     except FileNotFoundError:
         print(f"File not found: {file_path}")
+        return 2
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        return 2
+
+def add_to_pool(tmux_session_name, options, file_path, mix_type):
+    #start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
+    is_defined = False
+    
+    if mix_type == 1:
+        start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'U', 'Enter']  #First time wallet use
+    else:
+        start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter']
+        
+    back_keystrokes = ['Tab', 'Enter', 'Tab', 'Enter']
+    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+    
+    utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
+    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+    if options.debug: 
+        utility.print_tmux_screen('output.txt')
+    time.sleep(1.5)
+    
+    is_defined = check_for_init_UTXO(file_path, options, date_pattern, 10)
+    if is_defined:
+        print("\033[31mDate pattern not found in content.\033[0m")
     
     start_mixing_keystrokes = ['Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Enter']
     final_keystrokes = back_keystrokes if is_defined else start_mixing_keystrokes
@@ -245,11 +268,12 @@ def main():
     if options.create:
         create_wallet(tmux_session_name, options)
         get_adress(tmux_session_name, options)
+        add_to_pool(tmux_session_name, options, 'output.txt', 1)
     else:
         initialize_wallet(tmux_session_name, options)
     #add to pool
     if options.pool:
-        add_to_pool(tmux_session_name, options, 'output.txt')
+        add_to_pool(tmux_session_name, options, 'output.txt', 0)
     #start premix 
     if options.mix:
         start_mix(tmux_session_name, options)
