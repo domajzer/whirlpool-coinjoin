@@ -1,4 +1,3 @@
-import subprocess
 import time
 import re
 import argparse
@@ -135,15 +134,19 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
     if options.debug: 
         utility.print_tmux_screen('output.txt')
     
-def start_mix(tmux_session_name, options):
-    counter = 0
+def start_mix(tmux_session_name, options): #pp_variable = Premix/Postmix variable
+    counter = 0 
+    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
     #start premix 
-    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'P', 'Enter', 'U', 'Enter', 'Tab', 'Enter']
+    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'P', 'Enter', 'U', 'Enter',        'Tab', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
     
     if options.debug: 
         utility.print_tmux_screen('output.txt')
+    
+    start_UTXO = utility.check_for_UTXO('output.txt')
+    print(f"UTXO IN  WALLET {start_UTXO}")
     
     try:
         with open('output.txt', 'r') as file:
@@ -171,7 +174,26 @@ def start_mix(tmux_session_name, options):
 
     except Exception as e:
         print(f"An error occurred: {e}")
-                            
+    
+    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+    if options.debug: 
+        utility.print_tmux_screen('output.txt')    
+                
+    try:
+        now_UTXO = start_UTXO
+        while(now_UTXO != 0):
+            now_UTXO = utility.check_for_UTXO('output.txt')
+            print(f"Remaining UTXO {now_UTXO}")
+            time.sleep(25)
+        
+        print(f"All {start_UTXO} UTXOs have been mixed")
+          
+    except FileNotFoundError:
+        print(f"File not found: {'output.txt'}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    
     #return to start after premix
     stop_start_mixing_keystrokes = ['Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, stop_start_mixing_keystrokes, options)
