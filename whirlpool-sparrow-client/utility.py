@@ -67,6 +67,7 @@ def parse_seed(input_file, output_file):
             
         seed = ' '.join(word.replace('│', '').strip() for word in seed_words)
         seed = re.sub(r' {2,}', '', seed)
+        seed = seed.replace("words","words: ",1)
         
         with open(output_file,'w') as output:
             output.write(seed)
@@ -83,3 +84,20 @@ def parse_address(input_file):
                 if match:
                     return match.group()
     return "No address found"
+
+def check_for_UTXO(file_path):
+    UTXO_counter = 0
+    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+
+    try:
+        with open(file_path, 'r') as file:
+            for line in file:
+                if re.search(date_pattern, line) or "Unconfirmed" in line:
+                    UTXO_counter += 1
+        return UTXO_counter
+    
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
