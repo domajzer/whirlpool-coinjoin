@@ -1,14 +1,18 @@
 import docker
 import os
+import re
 import time
 import subprocess
+import threading
+import walletmanager
 
 # Constants
-PROVISION_NUMBER = [i for i in range(1,2)]
+PROVISION_NUMBER_FIRST_LIQUIDITY = [i for i in range(1,1)]
+PROVISION_NUMBER_AFTER_LIQUIDITY = [i for i in range(1,1)]
 NETWORK_NAME = "whirlpool-net"
 MYSQL_IMAGE_TAG = "whirlpool-db"
 PYTHON_IMAGE_TAG = "whirlpool-db-init"
-MAVEN_IMAGE_TAG = "whirlpool-server"
+WHIRLPOOL_SERVER_IMAGE_TAG = "whirlpool-server"
 MYSQL_CONTAINER_NAME = "whirlpool-db"
 PYTHON_CONTAINER_NAME = "whirlpool-db-init"
 WHIRLPOOL_SERVER_CONTAINER_NAME = "whirlpool-server"
@@ -22,6 +26,7 @@ MYSQL_VOLUME_NAME = "whirlpool-mysql-data"
 available_wallets = os.listdir(WALLETS_PATH)
 used_wallets = set()
 docker_client = docker.from_env()
+shutdown_event = threading.Event()
 
 try:
     network = docker_client.networks.get(NETWORK_NAME)
@@ -64,7 +69,7 @@ def build_and_run_mysql_container():
     )
     
     print(f"Container '{MYSQL_CONTAINER_NAME}' started")
-    time.sleep(20) 
+    time.sleep(10) 
     return mysql_container
 
 def build_and_run_python_container():
@@ -84,48 +89,53 @@ def build_and_run_python_container():
         remove=True
     )
     print(f"Container '{PYTHON_CONTAINER_NAME}' started")
-    time.sleep(15) 
+    time.sleep(5) 
     return python_container
 
-def build_and_run_maven_container():
-    print("Building Whrilpool-server Docker image for Whirlpool Server")
-    docker_client.images.build(
-        path="./coordinator-docker", dockerfile='Dockerfile.whirlpool', tag=MAVEN_IMAGE_TAG, rm=True
-    )
-    print("- Whrilpool-server image built")
+def build_whirlpool_server():
+    print("Building Docker image for Whirlpool Server")
     try:
-        maven_container = docker_client.containers.get(WHIRLPOOL_SERVER_CONTAINER_NAME)
-        if maven_container.status == 'running':
+        docker_client.images.build(
+            path="./coordinator-docker", dockerfile='Dockerfile.whirlpool', tag=WHIRLPOOL_SERVER_IMAGE_TAG, rm=True
+        )
+        print("- Whirlpool Server image built successfully")
+    except Exception as e:
+        print(f"Failed to build Whirlpool Server image: {e}")
+    
+def run_whirlpool_server_container():
+    try:
+        whirlpool_server_container = docker_client.containers.get(WHIRLPOOL_SERVER_CONTAINER_NAME)
+        if whirlpool_server_container.status == 'running':
             print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' is already running.")
-            return maven_container
-        elif maven_container.status == 'exited':
+            return whirlpool_server_container
+        elif whirlpool_server_container.status == 'exited':
             print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' has exited. Removing and starting a new one.")
-            maven_container.remove()
+            whirlpool_server_container.remove()
         else:
-            print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' is in an unexpected state: {maven_container.status}.")
-            return maven_container
+            print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' is in an unexpected state: {whirlpool_server_container.status}.")
+            return whirlpool_server_container
     except docker.errors.NotFound:
-        print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' not found. Will create a new one.")
-
+        print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' not found. Creating a new one.")
+    
     print(f"Starting container '{WHIRLPOOL_SERVER_CONTAINER_NAME}'")
-    maven_container = docker_client.containers.run(
-        MAVEN_IMAGE_TAG,
+    whirlpool_server_container = docker_client.containers.run(
+        WHIRLPOOL_SERVER_IMAGE_TAG,
         detach=True,
         name=WHIRLPOOL_SERVER_CONTAINER_NAME,
         ports={'8080/tcp': 8080},
         network='bridge',
-        remove=True
+        remove=False
     )
     print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' started")
     default_bridge_network = docker_client.networks.get('bridge')
-    default_bridge_network.disconnect(maven_container)
+    default_bridge_network.disconnect(whirlpool_server_container)
     
     FIXED_IP = "172.18.0.10"
-    network.connect(maven_container, ipv4_address=FIXED_IP)
-    
+    network.connect(whirlpool_server_container, ipv4_address=FIXED_IP)
+     
     print(f"Container '{WHIRLPOOL_SERVER_CONTAINER_NAME}' started with IP: {FIXED_IP}")
     time.sleep(10)
-    return maven_container
+    return whirlpool_server_container
 
 def build_and_run_bitcoin_container():
     print("Checking for Bitcoin Testnet Node Docker image")
@@ -181,15 +191,17 @@ def build_sparrow_container():
     )
 
 def run_sparrow_container(sparrow_container_name):
+    cmd = f"python3 /usr/src/app/automation.py -debug -mix -create -name {sparrow_container_name}"
     print(f"Starting container '{sparrow_container_name}'")
     sparrow_container = docker_client.containers.run(
         SPARROW_IMAGE_TAG,
         detach=True,
         name=sparrow_container_name,
         network=NETWORK_NAME,
-        remove=False,
+        remove=True,
         tty=True,
-        privileged=True
+        privileged=True,
+        command=cmd
     )
     print(f"Container '{sparrow_container_name}' started")
     return sparrow_container
@@ -243,21 +255,128 @@ def build_logs_file(container_name):
     except subprocess.CalledProcessError as e:
         print(f"Failed to create a logfile of {container_name}: {e}")
 
+def parse_address_send_btc(log_file_path):
+    tbtc_address_pattern = r'\$\$Wallet\$\$Address\$\$: (tb1[a-z0-9]{39,59})'
+    premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
+    output_file_path = "whirlpool-sparrow-client/tmp/addresses.txt"
+    pattern_found = False
+    
+    try:
+        with open(log_file_path, 'r') as file:
+            addresses_in_file = set()
+
+            if os.path.exists(output_file_path):
+                with open(output_file_path, 'r') as file2:
+                    addresses_in_file = set(line.strip() for line in file2)
+
+            for line in file:
+                match = re.search(tbtc_address_pattern, line)
+                if match:
+                    tbtc_address = match.group(1)
+                    
+                    if tbtc_address not in addresses_in_file:
+                        with open(output_file_path, 'a') as file2:
+                            file2.write(tbtc_address + '\n')
+                            addresses_in_file.add(tbtc_address)
+                if re.search(premix_UTXO_mixed_pattern, line):
+                    pattern_found = True
+                      
+    except FileNotFoundError:
+        print(f"Log file {log_file_path} not found")
+    
+    return pattern_found
+
+def send_btc(input_path, output_path, amount, btc_node):
+    try:
+        with open(output_path, 'r+') as output_file:
+            sent_addresses = set(output_file.read().splitlines())
+        
+        #wallet_info = btc_node.get_wallet_info()
+        #print("Wallet Info:", wallet_info)
+        
+        with open(input_path, 'r+') as input_file, open(output_path, 'a+') as output_file:
+            for address in input_file:
+                address = address.strip()
+                if address and address not in sent_addresses:
+                    try:
+                        transaction_info = btc_node.fund_address(address, amount)
+                        print("Transaction info:", transaction_info)
+                        output_file.write(address + '\n')
+                        
+                    except Exception as e:
+                        print(f"Error sending BTC to {address}: {e}")
+                        
+    except FileNotFoundError as e:
+        print(f"File not found: {e}")
+        
+    except Exception as e:
+        print(f"Error in send_btc: {e}")
+
+def capture_logs_periodically(container_names, amount, btc_node, premix_check, interval=55):
+    if shutdown_event.is_set():
+        return
+    
+    premix_matched_containers = set()
+    for container_name in container_names:
+        build_logs_file(container_name)
+        if parse_address_send_btc(f"whirlpool-sparrow-client/logs/{container_name}.txt"):
+            premix_matched_containers.add(container_name)
+            print(f"Container {container_name} has finished mixing premix UTXO.")
+            
+    if (premix_matched_containers == set(container_names)) and (premix_check == 0):
+        subprocess.run(['docker', 'cp', 'stopfile', f'{WHIRLPOOL_SERVER_CONTAINER_NAME}:/app/stopfile'], check=True)
+        premix_check = 1
+
+    send_btc("whirlpool-sparrow-client/tmp/addresses.txt","whirlpool-sparrow-client/tmp/addresses_send.txt", amount, btc_node)
+    
+    if not shutdown_event.is_set():
+        timer = threading.Timer(interval, capture_logs_periodically, [container_names, amount, btc_node, interval])
+        timer.start()
+        
 def main(): 
+    btc_node = walletmanager.BtcNode(
+        host="localhost",
+        port=18332,
+        rpc_user="TestnetUser1",
+        rpc_password="Testnet123"
+    )
+    
     build_and_run_bitcoin_container()
     build_and_run_mysql_container()
-    time.sleep(80)
+    #time.sleep(100)
     print("Waiting for MySQL container to initialize...")
     build_and_run_python_container()
-    build_and_run_maven_container()
-    time.sleep(7)
-    maven_ip = get_container_ip(WHIRLPOOL_SERVER_CONTAINER_NAME)
+    #build_whirlpool_server()
+    run_whirlpool_server_container()
     time.sleep(10)
+    maven_ip = get_container_ip(WHIRLPOOL_SERVER_CONTAINER_NAME)
+    time.sleep(25)
     
     build_sparrow_container()
 
     wallet_containers = []
-    for wallet in PROVISION_NUMBER:
+    default_containers = [BITCOIN_CONTAINER_NAME, MYSQL_CONTAINER_NAME, WHIRLPOOL_SERVER_CONTAINER_NAME]
+    for wallet in PROVISION_NUMBER_FIRST_LIQUIDITY:
+        sparrow_container_name = f"{SPARROW_IMAGE_TAG}-liquidity-{wallet}"
+        
+        run_sparrow_container(sparrow_container_name)
+        setup_socat_in_container(sparrow_container_name, maven_ip)
+        
+        for wallet_file in available_wallets:
+            if wallet_file not in used_wallets:
+                print(f"Copying '{wallet_file} into '{sparrow_container_name}'")
+                copy_wallet_to_container(sparrow_container_name, wallet_file)
+                used_wallets.add(wallet_file)
+                break
+        
+        wallet_containers.append(sparrow_container_name)
+        time.sleep(30)
+    premix_check = 0
+    capture_logs_periodically(wallet_containers, 0.0002, btc_node, premix_check)
+    while(premix_check == 0):
+        time.sleep(30)
+    
+    for wallet in PROVISION_NUMBER_AFTER_LIQUIDITY:
         sparrow_container_name = f"{SPARROW_IMAGE_TAG}-{wallet}"
         
         run_sparrow_container(sparrow_container_name)
@@ -271,12 +390,12 @@ def main():
                 break
         
         wallet_containers.append(sparrow_container_name)
-        time.sleep(10)
+        time.sleep(24)
     
-    default_containers = [BITCOIN_CONTAINER_NAME, MYSQL_CONTAINER_NAME, WHIRLPOOL_SERVER_CONTAINER_NAME]
     
-    input("Press Enter to stop all running containers...\n")
+    input("Press Enter to stop all running sparrow containers...\n")
     
+    shutdown_event.set()
     maven_export_dir = "/app/logs"
     mixs_file_path = f"{maven_export_dir}/mixs.csv"
     activity_file_path = f"{maven_export_dir}/activity.csv"
@@ -284,10 +403,11 @@ def main():
     for container_name in wallet_containers:
         print(f"Stopping wallet container '{container_name}'")
         container = docker_client.containers.get(container_name)
-        build_logs_file(container_name)
         container.stop()
         print(f"Wallet container '{container_name}' stopped")
-        
+    
+    input("Press Enter to stop all other running containers...\n")
+    
     for container_name in default_containers:
         print(f"Stopping container '{container_name}'")
         
