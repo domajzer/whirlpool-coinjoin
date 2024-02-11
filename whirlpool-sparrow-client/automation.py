@@ -338,31 +338,41 @@ def main():
     options = parse_arguments()
     tmux_session_name = "sparrow_wallet"
     sparrow_command = "/usr/src/app/Sparrow/bin/Sparrow --network testnet"
-    
-    utility.start_tmux_with_app(tmux_session_name, sparrow_command)
-    time.sleep(5)
     utility.system_info(options)
     
-    #initialize the wallet
-    if options.create:
-        create_wallet(tmux_session_name, options)
-        get_adress(tmux_session_name, options)
-        add_to_pool(tmux_session_name, options, 'output.txt', 1)
-        time.sleep(5)
-    else:
-        initialize_wallet(tmux_session_name, options)
-    #add to pool
-    if options.pool:
-        add_to_pool(tmux_session_name, options, 'output.txt', 0)
-    #start premix 
-    if options.mix:
-        start_mix(tmux_session_name, options)
-    #stop premix
-    #time.sleep(25)
-    #start_mix(tmux_session_name, options)
-    
-    while(1):
-       time.sleep(1)
+    for attempt in range(5):  
+        utility.start_tmux_session(tmux_session_name, sparrow_command)
+        time.sleep(5)  
+        connected_status = utility.retry_if_not_connected('sparrow_wallet', '0', 'output.txt')
+        
+        if connected_status == 0:
+            print(f"\033[32mWallet successfully connected to bitcoin node.\033[0m")
+            break  
+        else:
+            print("\033[31mWallet failed to connect to bitcoin node. Restarting session.\033[0m")
+            utility.kill_tmux_session(tmux_session_name) 
+
+        if attempt == 4:  # Last attempt failed
+            print("\033[31mFailed to connect after 3 attempts. Exiting.\033[0m")
+            return  # Exit the program
+
+    if connected_status == 0:
+        # Initialize the wallet
+        if options.create:
+            create_wallet(tmux_session_name, options)
+            get_adress(tmux_session_name, options)
+            add_to_pool(tmux_session_name, options, 'output.txt', 1)
+            time.sleep(5)
+            
+        else:
+            initialize_wallet(tmux_session_name, options)
+
+        # Start premix
+        if options.mix:
+            start_mix(tmux_session_name, options)
+
+        while True:
+            time.sleep(1)
 
 if __name__ == '__main__':
     main()
