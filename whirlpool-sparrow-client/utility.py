@@ -16,7 +16,7 @@ def get_ip_address():
 def system_info(options):
     system_var = os.uname()
     print(*system_var)
-    print(options.name)
+    print(f"Wallet name: {options.name}")
     print(get_ip_address())
 
 def capture_tmux_output(session_name, pane_id, output_file):
@@ -26,13 +26,18 @@ def capture_tmux_output(session_name, pane_id, output_file):
     with open(output_file, "w") as file:
         file.write(output)
 
-def start_tmux_with_app(session_name, app_command):
+def start_tmux_session(session_name, app_command):
     subprocess.Popen(f"tmux new -d -s {session_name} {app_command}", shell=True)
 
+def kill_tmux_session(session_name):
+    command = ['tmux', 'kill-session', '-t', session_name]
+    subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print(f"Successfully killed tmux session '{session_name}'.")
+    
 def send_keystroke_to_tmux(session_name, keystrokes, options):
     for keystroke in keystrokes:
         subprocess.run(f"tmux send-keys -t {session_name} {keystroke}", shell=True)
-        time.sleep(3.2)
+        time.sleep(3.6)
         #print(keystroke)
         if options.debugf:
             capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt')
@@ -101,3 +106,30 @@ def check_for_UTXO(file_path):
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        
+def retry_if_not_connected(session_name, pane_id, file_path):
+    for _ in range(10):
+        try:
+            capture_and_print_tmux_screen(session_name, pane_id, file_path)
+            with open(file_path, 'r') as file:
+                content = file.read()
+                if "Connecting" in content or "Disconnected" in content:
+                    print("\033[31mTrying to connect to a bitcoin node...\033[0m")
+                    time.sleep(5)
+                    
+                elif "Connected" in content:
+                    return 0
+                
+                else:
+                    continue
+                
+        except FileNotFoundError:
+            print(f"File not found: {file_path}")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            
+    return 1
+                    
+            
+    
