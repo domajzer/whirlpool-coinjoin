@@ -7,8 +7,8 @@ import threading
 import walletmanager
 
 # Constants
-PROVISION_NUMBER_FIRST_LIQUIDITY = [i for i in range(1,1)]
-PROVISION_NUMBER_AFTER_LIQUIDITY = [i for i in range(1,1)]
+PROVISION_NUMBER_FIRST_LIQUIDITY = [i for i in range(1,4)]
+PROVISION_NUMBER_AFTER_LIQUIDITY = [i for i in range(1,3)]
 NETWORK_NAME = "whirlpool-net"
 MYSQL_IMAGE_TAG = "whirlpool-db"
 PYTHON_IMAGE_TAG = "whirlpool-db-init"
@@ -21,6 +21,7 @@ BITCOIN_CONTAINER_NAME = "bitcoin-testnet-node"
 SPARROW_IMAGE_TAG = "whirlpool-sparrow"
 WALLETS_PATH = "whirlpool-sparrow-client/wallets"
 MYSQL_VOLUME_NAME = "whirlpool-mysql-data"
+premix_check = 0
 
 #INIT
 available_wallets = os.listdir(WALLETS_PATH)
@@ -198,7 +199,7 @@ def run_sparrow_container(sparrow_container_name):
         detach=True,
         name=sparrow_container_name,
         network=NETWORK_NAME,
-        remove=True,
+        remove=False,
         tty=True,
         privileged=True,
         command=cmd
@@ -312,14 +313,15 @@ def send_btc(input_path, output_path, amount, btc_node):
     except Exception as e:
         print(f"Error in send_btc: {e}")
 
-def capture_logs_periodically(container_names, amount, btc_node, premix_check, interval=55):
+def capture_logs_periodically(container_names, amount, btc_node, premix_matched_containers, interval=55):
+    global premix_check
     if shutdown_event.is_set():
         return
     
-    premix_matched_containers = set()
     for container_name in container_names:
+        time.sleep(2)
         build_logs_file(container_name)
-        if parse_address_send_btc(f"whirlpool-sparrow-client/logs/{container_name}.txt"):
+        if parse_address_send_btc(f"whirlpool-sparrow-client/logs/{container_name}.txt") and (premix_check == 0):
             premix_matched_containers.add(container_name)
             print(f"Container {container_name} has finished mixing premix UTXO.")
             
@@ -330,7 +332,7 @@ def capture_logs_periodically(container_names, amount, btc_node, premix_check, i
     send_btc("whirlpool-sparrow-client/tmp/addresses.txt","whirlpool-sparrow-client/tmp/addresses_send.txt", amount, btc_node)
     
     if not shutdown_event.is_set():
-        timer = threading.Timer(interval, capture_logs_periodically, [container_names, amount, btc_node, interval])
+        timer = threading.Timer(interval, capture_logs_periodically, [container_names, amount, btc_node, premix_matched_containers,interval])
         timer.start()
         
 def main(): 
@@ -340,19 +342,20 @@ def main():
         rpc_user="TestnetUser1",
         rpc_password="Testnet123"
     )
-    
+    premix_matched_containers = set()
     build_and_run_bitcoin_container()
     build_and_run_mysql_container()
-    #time.sleep(100)
+    #time.sleep(120)
     print("Waiting for MySQL container to initialize...")
     build_and_run_python_container()
-    #build_whirlpool_server()
+    build_whirlpool_server()
     run_whirlpool_server_container()
-    time.sleep(10)
+    #time.sleep(10)
     maven_ip = get_container_ip(WHIRLPOOL_SERVER_CONTAINER_NAME)
-    time.sleep(25)
+    #time.sleep(30)
     
     build_sparrow_container()
+    time.sleep(20)
 
     wallet_containers = []
     default_containers = [BITCOIN_CONTAINER_NAME, MYSQL_CONTAINER_NAME, WHIRLPOOL_SERVER_CONTAINER_NAME]
@@ -371,8 +374,8 @@ def main():
         
         wallet_containers.append(sparrow_container_name)
         time.sleep(30)
-    premix_check = 0
-    capture_logs_periodically(wallet_containers, 0.0002, btc_node, premix_check)
+        
+    capture_logs_periodically(wallet_containers, 0.0002, btc_node, premix_matched_containers)
     while(premix_check == 0):
         time.sleep(30)
     
@@ -390,7 +393,7 @@ def main():
                 break
         
         wallet_containers.append(sparrow_container_name)
-        time.sleep(24)
+        time.sleep(30)
     
     
     input("Press Enter to stop all running sparrow containers...\n")
