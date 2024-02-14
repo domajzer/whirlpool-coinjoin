@@ -51,3 +51,10 @@ class BtcNode:
             "params": [],
         }
         return self._rpc(request, WALLET)
+        
+    def load_wallet(self):
+        request = {
+            "method": "loadwallet",
+            "params": [WALLET],
+        }
+        return self._rpc(request, WALLET)
