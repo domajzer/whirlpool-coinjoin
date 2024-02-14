@@ -1,7 +1,7 @@
 FROM ubuntu:latest
 
 RUN apt-get update && \
-    apt-get install -y openjdk-18-jdk-headless socat tar tmux python3 vim && \
+    apt-get install -y openjdk-18-jdk-headless socat tar tmux python3 && \
     rm -rf /var/lib/apt/lists/* 
 
 WORKDIR /usr/src/app
@@ -17,7 +17,7 @@ RUN tar -xzf sparrow-1.7.10-x86_64.tar.gz && \
     rm sparrow-1.7.10-x86_64.tar.gz
 
 COPY automation.py .
-CMD ["python3", "/usr/src/app/automation.py"]
+COPY utility.py .
 
 #CMD tmux new -d -s sparrow_session '/usr/src/app/Sparrow/bin/Sparrow --network testnet'; exec /bin/bash
 
