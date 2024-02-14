@@ -1,10 +1,11 @@
+from manager.btc_node import BtcNode
 import docker
 import os
 import re
 import time
 import subprocess
 import threading
-import walletmanager
+
 
 # Constants
 PROVISION_NUMBER_FIRST_LIQUIDITY = [i for i in range(1,4)]
@@ -145,7 +146,7 @@ def build_and_run_bitcoin_container():
     existing_images = docker_client.images.list(name=image_tag)
     if not existing_images: 
         print(f"Image '{image_tag}' does not exist. Building new image.")
-        btc_docker_path = "./btc-docker"
+        btc_docker_path = "./btc-node"
         image, build_logs = docker_client.images.build(
             path=btc_docker_path, tag=image_tag, rm=True
         )
@@ -336,7 +337,7 @@ def capture_logs_periodically(container_names, amount, btc_node, premix_matched_
         timer.start()
         
 def main(): 
-    btc_node = walletmanager.BtcNode(
+    btc_node = BtcNode.BtcNode(
         host="localhost",
         port=18332,
         rpc_user="TestnetUser1",
