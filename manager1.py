@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.10
 
 from manager.btc_node import BtcNode
-from manager import utils
+#from manager import utils
 from time import sleep, time
 import random
 import os
@@ -13,7 +13,7 @@ import tempfile
 import multiprocessing
 
 
-#BTC = 100_000_000
+BTC = 100_000_000
 SCENARIO = {
     "name": "default",
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
@@ -61,101 +61,59 @@ def prepare_image(name):
 
 def prepare_images():
     print("Preparing images")
-    prepare_image("btc-node")
+    prepare_image("bitcoin-testnet-node")
     prepare_image("whirlpool-db")
     prepare_image("whirlpool-db-init")
+    prepare_image("whirlpool-server")
     prepare_image("whirlpool-sparrow-client")
 
 def start_infrastructure():
-    NETWORK_NAME = "whirlpool-net"
-    try:
-        network = driver.networks.get(NETWORK_NAME)
-        print(f"Using existing network: {NETWORK_NAME}")
-        
-    except driver.errors.NotFound:
-        network = driver.networks.create(NETWORK_NAME, driver="bridge")
-        print(f"Created network: {NETWORK_NAME}")
+    driver = DockerDriver(namespace="whirlpool-net")
+    network = driver.network
+    print(network)
         
     print("Starting infrastructure")
     testnet3_path = os.path.abspath("./btc-node/testnet3")
     btc_node_ip, btc_node_ports = driver.run(
-        "btc-node",
-        f"{args.image_prefix}btc-node",
-        name='bitcoin-testnet-node',
+        "bitcoin-testnet-node",
+        f"{args.image_prefix}bitcoin-testnet-node",
         ports={'18332/tcp': 18332},
         cpu=4.0,
         memory=6144,
         volumes={testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}},
-        network=NETWORK_NAME,
-        remove=True
+        network=network
     )
     global node
     node = BtcNode(
         host=btc_node_ip if args.proxy else args.control_ip,
-        port=18332,
+        port=btc_node_ports,
         internal_ip=btc_node_ip,
         proxy=args.proxy,
     )
     node.wait_ready()
     print("- started btc-node")
 
-    wasabi_backend_ip, wasabi_backend_ports = driver.run(
-        "wasabi-backend",
-        f"{args.image_prefix}wasabi-backend",
-        ports={37127: 37127},
-        env={
-            "WASABI_BIND": "http://0.0.0.0:37127",
-            "ADDR_BTC_NODE": args.btc_node_ip or node.internal_ip,
-        },
-        cpu=8.0,
-        memory=8192,
+    whirlpool_db_ip, whirlpool_db_ports = driver.run(
+        "whirlpool-db",
+        f"{args.image_prefix}whirlpool-db",
+        ports={'3306/tcp': 3307},
+        environment={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
+        cpu=1.0,
+        memory=1024,
+        volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}
     )
-    sleep(1)
-    with open("./containers/wasabi-backend/WabiSabiConfig.json", "r") as config_file:
-        backend_config = json.load(config_file)
-    backend_config.update(SCENARIO.get("backend", {}))
+    sleep(10)
+    print("- whirlpool-db")
 
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        scenario_file = tmp_file.name
-        tmp_file.write(json.dumps(backend_config, indent=2).encode())
-
-    driver.upload(
-        "wasabi-backend",
-        scenario_file,
-        "/home/wasabi/.walletwasabi/backend/WabiSabiConfig.json",
-    )
-
-    global coordinator
-    coordinator = WasabiBackend(
-        host=wasabi_backend_ip if args.proxy else args.control_ip,
-        port=37127 if args.proxy else wasabi_backend_ports[37127],
-        internal_ip=wasabi_backend_ip,
-        proxy=args.proxy,
-    )
-    coordinator.wait_ready()
-    print("- started wasabi-backend")
-
-    wasabi_client_distributor_ip, wasabi_client_distributor_ports = driver.run(
-        "wasabi-client-distributor",
-        f"{args.image_prefix}wasabi-client",
-        env={
-            "ADDR_BTC_NODE": args.btc_node_ip or node.internal_ip,
-            "ADDR_WASABI_BACKEND": args.wasabi_backend_ip or coordinator.internal_ip,
-        },
-        ports={37128: 37128},
+    whirlpool_server_ip, whirlpool_server_ports = driver.run(
+        "whirlpool-server",
+        f"{args.image_prefix}whirlpool-server",
+        ports={'8080/tcp': 8080},
+        network='bridge',
         cpu=1.0,
         memory=2048,
     )
-    global distributor
-    distributor = WasabiClient(
-        host=wasabi_client_distributor_ip if args.proxy else args.control_ip,
-        port=37128 if args.proxy else wasabi_client_distributor_ports[37128],
-        name="wasabi-client-distributor",
-        proxy=args.proxy,
-    )
-    if not distributor.wait_wallet(timeout=60):
-        print(f"- could not start distributor (application timeout)")
-        raise Exception("Could not start distributor")
+    sleep(60)
     print("- started distributor")
 
 
@@ -367,8 +325,8 @@ def run():
     try:
         print(f"=== Scenario {SCENARIO['name']} ===")
         prepare_images()
-        """
         start_infrastructure()
+        """
         fund_distributor(1000)
         start_clients(SCENARIO["wallets"])
         invoices = [
@@ -408,7 +366,7 @@ def run():
         print()
         print("KeyboardInterrupt received")
     finally:
-        stop_coinjoins()
+        #stop_coinjoins()
         if not args.no_logs:
             store_logs()
         driver.cleanup(args.image_prefix)

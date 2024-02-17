@@ -13,7 +13,14 @@ class DockerDriver(Driver):
 
     @cached_property
     def network(self):
-        return self.client.networks.create(self._namespace, driver="bridge")
+        try:
+            network = self.client.networks.get(self._namespace)
+            print(f"Using existing network: {self._namespace}")
+        except docker.errors.NotFound:
+            network = self.client.networks.create(self._namespace, driver="bridge")
+            print(f"Created network: {self._namespace}")
+        
+        return network
 
     def has_image(self, name):
         try:
@@ -37,6 +44,8 @@ class DockerDriver(Driver):
         skip_ip=False,
         cpu=0.1,
         memory=768,
+        volumes=None,
+        network=None
     ):
         self.client.containers.run(
             image,
@@ -47,6 +56,7 @@ class DockerDriver(Driver):
             network=self.network.id,
             ports=ports or {},
             environment=env or {},
+            volumes=volumes or {}
         )
         return "", ports
 

@@ -58,3 +58,13 @@ class BtcNode:
             "params": [WALLET],
         }
         return self._rpc(request, WALLET)
+    
+    def wait_ready(self):
+        while True:
+            try:
+                block_count = self.get_block_count()
+                if block_count > 100:
+                    break
+            except Exception:
+                pass
+            sleep(0.1)
