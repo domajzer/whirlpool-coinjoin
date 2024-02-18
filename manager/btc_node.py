@@ -59,12 +59,25 @@ class BtcNode:
         }
         return self._rpc(request, WALLET)
     
+    def get_blockchain_info(self):
+        request = {
+            "method": "getblockchaininfo",
+            "params": [],
+        }
+        return self._rpc(request)
+    
     def wait_ready(self):
+        print("Waiting for the node to be fully synchronized with the network...")
         while True:
             try:
-                block_count = self.get_block_count()
-                if block_count > 100:
+                blockchain_info = self.get_blockchain_info()
+                verification_progress = blockchain_info.get('verificationprogress', 0)
+                print(f"Current verification progress: {verification_progress * 100:.2f}%")
+                
+                if verification_progress >= 0.9999:
+                    print("The node is synchronized.")
                     break
-            except Exception:
-                pass
-            sleep(0.1)
+                
+            except Exception as e:
+                print(f"Error checking node synchronization status: {e}")
+            sleep(10)

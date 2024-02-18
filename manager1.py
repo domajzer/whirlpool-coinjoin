@@ -18,6 +18,11 @@ SCENARIO = {
     "name": "default",
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
+    "liquidity-wallets": [
+        {"funds": [200000, 50000], "delay": 0},
+        {"funds": [1000000, 500000], "delay": 0},
+        {"funds": [1000000, 500000], "delay": 0},     
+    ],
     "wallets": [
         {"funds": [200000, 50000], "delay": 0},
         {"funds": [3000000], "delay": 0},
@@ -86,7 +91,7 @@ def start_infrastructure():
     global node
     node = BtcNode(
         host=btc_node_ip if args.proxy else args.control_ip,
-        port=btc_node_ports,
+        port=btc_node_ports['18332/tcp'] if btc_node_ports and '18332/tcp' in btc_node_ports else 18332,
         internal_ip=btc_node_ip,
         proxy=args.proxy,
     )
@@ -100,21 +105,30 @@ def start_infrastructure():
         environment={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1.0,
         memory=1024,
+        network=network,
         volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}
     )
+    print("- started whirlpool-db")
+    
+    whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
+        "whirlpool-db-init",
+        f"{args.image_prefix}whirlpool-db-init",
+        environment={'MYSQL_ROOT_PASSWORD': 'root'},
+        network=network
+    )
     sleep(10)
-    print("- whirlpool-db")
-
+    print("- started whirlpool-db-init")
+    
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={'8080/tcp': 8080},
-        network='bridge',
+        network=network,
         cpu=1.0,
         memory=2048,
     )
     sleep(60)
-    print("- started distributor")
+    print("- started coordinator")
 
 
 def fund_distributor(btc_amount):
@@ -326,9 +340,9 @@ def run():
         print(f"=== Scenario {SCENARIO['name']} ===")
         prepare_images()
         start_infrastructure()
-        """
-        fund_distributor(1000)
+        #fund_distributor(1000)
         start_clients(SCENARIO["wallets"])
+        """
         invoices = [
             (client, wallet.get("funds", []))
             for client, wallet in zip(clients, SCENARIO["wallets"])
