@@ -78,7 +78,7 @@ def start_infrastructure():
     print(network)
         
     print("Starting infrastructure")
-    testnet3_path = os.path.abspath("./btc-node/testnet3")
+    testnet3_path = os.path.abspath("/home/domajzer/coinjoin-simulator-main/btc-docker/testnet3")
     btc_node_ip, btc_node_ports = driver.run(
         "bitcoin-testnet-node",
         f"{args.image_prefix}bitcoin-testnet-node",
@@ -102,7 +102,7 @@ def start_infrastructure():
         "whirlpool-db",
         f"{args.image_prefix}whirlpool-db",
         ports={'3306/tcp': 3307},
-        environment={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
+        env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1.0,
         memory=1024,
         network=network,
@@ -113,7 +113,7 @@ def start_infrastructure():
     whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
         "whirlpool-db-init",
         f"{args.image_prefix}whirlpool-db-init",
-        environment={'MYSQL_ROOT_PASSWORD': 'root'},
+        env={'MYSQL_ROOT_PASSWORD': 'root'},
         network=network
     )
     sleep(10)
