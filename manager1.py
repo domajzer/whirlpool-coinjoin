@@ -180,12 +180,12 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
         if parse_address_send_btc(client, f"whirlpool-sparrow-client/logs/{client.name}.txt") and (premix_check == 0):
             premix_matched_containers.add(client)
             print(f"Container {client.name} has finished mixing premix UTXO.")
+        send_btc("whirlpool-sparrow-client/tmp/addresses.txt","whirlpool-sparrow-client/tmp/addresses_send.txt", client, btc_node)
+
             
     if (premix_matched_containers == set(clients)) and (premix_check == 0):
         driver.upload("whirlpool-server", "stopfile", "whirlpool-server:/app/stopfile")
         premix_check = 1
-
-    send_btc("whirlpool-sparrow-client/tmp/addresses.txt","whirlpool-sparrow-client/tmp/addresses_send.txt", client, btc_node)
     
     if not shutdown_event.is_set():
         timer = threading.Timer(interval, capture_logs_periodically, [clients, btc_node, premix_matched_containers,interval])
