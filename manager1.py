@@ -2,7 +2,6 @@
 
 from manager.btc_node import BtcNode
 from manager.sparrow_client import SparrowClient
-#from manager import utils
 from time import sleep, time
 import random
 import os
@@ -11,8 +10,6 @@ import threading
 import datetime
 import json
 import argparse
-import shutil
-import tempfile
 import multiprocessing
 
 
@@ -96,7 +93,7 @@ def start_infrastructure():
         rpc_user="TestnetUser1",
         rpc_password="Testnet123"
     )
-    #node.wait_ready()
+    node.wait_ready()
     print("- started btc-node")
 
     whirlpool_db_ip, whirlpool_db_ports = driver.run(
@@ -128,15 +125,17 @@ def start_infrastructure():
     sleep(60)
     print("- started coordinator")
 
-def start_client(idx, wallet):
+def start_client(idx, wallet, client_name):
     sleep(random.random() * 3)
-    name = f"whirlpool-sparrow-client-{idx:03}"
+    name = f"whirlpool-{client_name}-{idx:03}"
+    cmd = f"python3 /usr/src/app/automation.py -debug -mix -create -name {name}"
     try:
         ip, manager_ports = driver.run(
             name,
             f"{args.image_prefix}whirlpool-sparrow-client",
             ports={37128: 37129 + idx},
-            tty=True
+            tty=True,
+            command=cmd
         )
         
         client = SparrowClient(
@@ -158,11 +157,11 @@ def start_client(idx, wallet):
     
     return client
 
-def start_clients(wallets):
+def start_clients(wallets, name):
     print("Starting clients")
     with multiprocessing.Pool() as pool:
-        new_clients = pool.starmap(start_client, enumerate(wallets, start=len(clients)))
-        print(enumerate(wallets, start=len(clients)))
+        args_for_starmap = [(idx, wallet, name) for idx, wallet in enumerate(wallets, start=len(clients))]
+        new_clients = pool.starmap(start_client, args_for_starmap)
         
         successfully_started_clients = [client for client in new_clients if client is not None]
 
@@ -176,12 +175,11 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
     
     for client in clients:
         sleep(2)
-        driver.capture_and_save_logs(client, f"whirlpool-sparrow-client/logs/{client.name}.txt")
-        if parse_address_send_btc(client, f"whirlpool-sparrow-client/logs/{client.name}.txt") and (premix_check == 0):
+        driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
+        if parse_address_send_btc(client, f"logs/{client.name}.txt") and (premix_check == 0):
             premix_matched_containers.add(client)
             print(f"Container {client.name} has finished mixing premix UTXO.")
-        send_btc("whirlpool-sparrow-client/tmp/addresses.txt","whirlpool-sparrow-client/tmp/addresses_send.txt", client, btc_node)
-
+        send_btc("logs/addresses_send.txt", client, btc_node)
             
     if (premix_matched_containers == set(clients)) and (premix_check == 0):
         driver.upload("whirlpool-server", "stopfile", "whirlpool-server:/app/stopfile")
@@ -226,19 +224,19 @@ def parse_address_send_btc(client, log_file_path):
 
 def send_btc(output_path, client, btc_node):
     try:
-        if client.address and client.amount > 0:
+        if ((client.address is not None) and (client.amount > 0)):
             with open(output_path, 'r') as output_file:
                 sent_addresses = set(output_file.read().splitlines())
         
-        if client.address not in sent_addresses:
-            with open(output_path, 'a') as output_file:
-                try:
-                    transaction_info = btc_node.fund_address(client.address, client.amount)
-                    output_file.write(client.address + '\n')
-                    print("Transaction info:", transaction_info)
+            if client.address not in sent_addresses:
+                with open(output_path, 'a') as output_file:
+                    try:
+                        transaction_info = btc_node.fund_address(client.address, client.amount)
+                        output_file.write(client.address + '\n')
+                        print("Transaction info:", transaction_info)
 
-                except Exception as e:
-                    print(f"Error sending BTC to {client.address}: {e}")
+                    except Exception as e:
+                        print(f"Error sending BTC to {client.address}: {e}")
              
     except Exception as e:
         print(f"Error in send_btc: {e}")
@@ -257,7 +255,7 @@ def run():
         #wallet_config = SCENARIO["liquidity-wallets"][0]
         #client_name = start_client(1, wallet_config)
         #fund_distributor(1000)
-        start_clients(SCENARIO["liquidity-wallets"])
+        start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         capture_logs_periodically(clients, node, premix_matched_containers)
         
         while(premix_check == 0):
@@ -265,7 +263,7 @@ def run():
             sleep(60)
             
         print("Changing coordinator config")
-        start_clients(SCENARIO["wallets"])
+        start_clients(SCENARIO["wallets"], "wallets")
 
         """
         invoices = [

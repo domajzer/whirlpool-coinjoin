@@ -1,7 +1,7 @@
 FROM ubuntu:latest
 
 RUN apt-get update && \
-    apt-get install -y openjdk-18-jdk-headless socat tar tmux python3 && \
+    apt-get install -y openjdk-18-jdk-headless socat tar tmux python3 telnet iputils-ping curl && \
     rm -rf /var/lib/apt/lists/* 
 
 WORKDIR /usr/src/app
