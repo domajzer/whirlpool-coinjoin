@@ -1,3 +1,5 @@
-FROM mysql:8.0
-ENV MYSQL_ROOT_PASSWORD=root
-ENV MYSQL_DATABASE=whirlpool_testnet
+FROM python:3.9-slim
+WORKDIR /usr/src/app
+RUN pip install pymysql cryptography
+COPY db.py .
+CMD ["python", "./db.py"]

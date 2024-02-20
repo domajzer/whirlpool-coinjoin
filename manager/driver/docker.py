@@ -13,14 +13,13 @@ class DockerDriver(Driver):
 
     @cached_property
     def network(self):
-        try:
-            network = self.client.networks.get(self._namespace)
+        networks = self.client.networks.list(names=[self._namespace])
+        if networks:
             print(f"Using existing network: {self._namespace}")
-        except docker.errors.NotFound:
-            network = self.client.networks.create(self._namespace, driver="bridge")
-            print(f"Created network: {self._namespace}")
-        
-        return network
+            return networks[0]
+        else:
+            print(f"Creating new network: {self._namespace}")
+            return self.client.networks.create(self._namespace, driver="bridge")
 
     def has_image(self, name):
         try:
@@ -45,7 +44,7 @@ class DockerDriver(Driver):
         cpu=0.1,
         memory=768,
         volumes=None,
-        network=None
+        tty=False
     ):
         self.client.containers.run(
             image,
@@ -56,7 +55,8 @@ class DockerDriver(Driver):
             network=self.network.id,
             ports=ports or {},
             environment=env or {},
-            volumes=volumes or {}
+            volumes=volumes or {},
+            tty=tty
         )
         return "", ports
 
@@ -97,6 +97,36 @@ class DockerDriver(Driver):
         fo.seek(0)
         self.client.containers.get(name).put_archive(os.path.dirname(dst_path), fo)
 
+    def setup_socat_in_container(self, container_name, coordinator_ip):
+        container = self.client.containers.get(container_name)
+        cmd = f"socat TCP-LISTEN:8080,fork TCP:{coordinator_ip}:8080"
+        try:
+            container.exec_run(cmd, detach=True)
+            print(f"Started socat in {container_name}.")
+            
+            result = container.exec_run(["/bin/sh", "-c", "ps aux | grep socat"])
+            if "TCP-LISTEN" in result.output.decode():
+                print(f"Socat is running in {container_name}.")
+            else:
+                print(f"Failed to start socat in {container_name}.")
+                return False
+            return True
+        
+        except Exception as e:
+            print(f"Exception setting up socat in container {container_name}: {e}")
+            return False
+    
+    def capture_and_save_logs(self, client, log_file_path):
+        try:
+            container = self.client.containers.get(client.name)
+            logs = container.logs().decode("utf-8")
+            
+            with open(log_file_path, "w") as log_file:
+                log_file.write(logs)
+            print(f"Captured and saved logs for {client.name} to {log_file_path}")
+        except Exception as e:
+            print(f"Failed to capture and save logs for {client.name}: {e}")
+    
     def cleanup(self, image_prefix=""):
         containers = list(
             filter(
@@ -113,4 +143,4 @@ class DockerDriver(Driver):
         networks = self.client.networks.list(self._namespace)
         if networks:
             for network in networks:
-                network.remove()
+                network.remove() 
