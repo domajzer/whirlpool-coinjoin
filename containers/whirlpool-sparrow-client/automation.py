@@ -337,7 +337,7 @@ def get_adress(tmux_session_name, options):
 def main():
     options = parse_arguments()
     tmux_session_name = "sparrow_wallet"
-    sparrow_command = "/usr/src/app/Sparrow/bin/Sparrow --network testnet"
+    sparrow_command = "./Sparrow/bin/Sparrow --network testnet"
     utility.system_info(options)
     
     for attempt in range(5):  

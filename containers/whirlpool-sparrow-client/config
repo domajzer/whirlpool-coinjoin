@@ -18,7 +18,7 @@
   "enumerateHwPeriod": 30,
   "useZbar": true,
   "serverType": "BITCOIN_CORE",
-  "coreServer": "127.0.0.1:18332",
+  "coreServer": "http://bitcoin-testnet-node:18332",
   "recentCoreServers": [
     "http://bitcoin-testnet-node:18332"
   ],

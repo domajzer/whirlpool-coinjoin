@@ -4,7 +4,7 @@ import pymysql.cursors
 db_host = 'whirlpool-db'
 db_port = 3306
 db_root_user = 'root'
-db_root_password = os.getenv('MYSQL_ROOT_PASSWORD')  
+db_root_password = 'root' 
 db_name = 'whirlpool_testnet'
 db_user = 'testnet_user'
 db_password = 'Testnet_user123'

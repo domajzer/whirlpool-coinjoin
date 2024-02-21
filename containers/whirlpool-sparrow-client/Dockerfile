@@ -8,9 +8,6 @@ WORKDIR /usr/src/app
 COPY sparrow-1.7.10-x86_64.tar.gz .
 RUN mkdir -p /root/.sparrow/testnet/wallets
 
-COPY testnet4.mv.db /root/.sparrow/testnet/wallets/
-RUN  rm /root/.sparrow/testnet/wallets/testnet4.mv.db
-
 COPY config /root/.sparrow/testnet
 
 RUN tar -xzf sparrow-1.7.10-x86_64.tar.gz && \

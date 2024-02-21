@@ -94,6 +94,7 @@ def start_infrastructure():
         rpc_password="Testnet123"
     )
     node.wait_ready()
+    node.load_wallet()
     print("- started btc-node")
 
     whirlpool_db_ip, whirlpool_db_ports = driver.run(
@@ -101,18 +102,17 @@ def start_infrastructure():
         f"{args.image_prefix}whirlpool-db",
         ports={'3306/tcp': 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
-        cpu=0.8,
-        memory=1024,
+        cpu=1,
+        memory=1536,
         volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}
     )
     print("- started whirlpool-db")
-    
+    sleep(30)
     whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
         "whirlpool-db-init",
-        f"{args.image_prefix}whirlpool-db-init",
-        env={'MYSQL_ROOT_PASSWORD': 'root'}
+        f"{args.image_prefix}whirlpool-db-init"
     )
-    sleep(10)
+    sleep(5)
     print("- started whirlpool-db-init")
     global whirlpool_server_ip
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
@@ -252,9 +252,7 @@ def run():
         
         prepare_images()
         start_infrastructure()
-        #wallet_config = SCENARIO["liquidity-wallets"][0]
-        #client_name = start_client(1, wallet_config)
-        #fund_distributor(1000)
+        
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         capture_logs_periodically(clients, node, premix_matched_containers)
         
@@ -265,45 +263,10 @@ def run():
         print("Changing coordinator config")
         start_clients(SCENARIO["wallets"], "wallets")
 
-        """
-        invoices = [
-            (client, wallet.get("funds", []))
-            for client, wallet in zip(clients, SCENARIO["wallets"])
-        ]
-        fund_clients(invoices)
-
-        print("Mixing")
-        rounds = 0
-        initial_blocks = node.get_block_count()
-        blocks = 0
-        while (SCENARIO["rounds"] == 0 or rounds < SCENARIO["rounds"]) and (
-            SCENARIO["blocks"] == 0 or blocks < SCENARIO["blocks"]
-        ):
-            for _ in range(3):
-                try:
-                    rounds = sum(
-                        1
-                        for _ in driver.peek(
-                            "wasabi-backend",
-                            "/home/wasabi/.walletwasabi/backend/WabiSabi/CoinJoinIdStore.txt",
-                        ).split("\n")[:-1]
-                    )
-                    break
-                except Exception as e:
-                    print(f"- could not get rounds ({e})")
-                    rounds = 0
-
-            start_coinjoins(blocks := node.get_block_count() - initial_blocks)
-            print(f"- coinjoin rounds: {rounds} (block {blocks})", end="\r")
-            sleep(1)
-        print()
-        print(f"- limit reached")
-        """
     except KeyboardInterrupt:
         print()
         print("KeyboardInterrupt received")
     finally:
-        #stop_coinjoins()
         #if not args.no_logs:
             #store_logs()
         #driver.cleanup(args.image_prefix)

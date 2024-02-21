@@ -41,8 +41,8 @@ class DockerDriver(Driver):
         env=None,
         ports=None,
         skip_ip=False,
-        cpu=0.1,
-        memory=768,
+        cpu=0.3,
+        memory=800,
         volumes=None,
         tty=False,
         command=None
