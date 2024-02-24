@@ -28,6 +28,9 @@ def capture_tmux_output(session_name, pane_id, output_file):
 
 def start_tmux_session(session_name, app_command):
     subprocess.Popen(f"tmux new -d -s {session_name} {app_command}", shell=True)
+    time.sleep(1)
+    subprocess.Popen(f"tmux resize-pane -t {session_name} -x {24} -y {80}", shell=True)
+
 
 def kill_tmux_session(session_name):
     command = ['tmux', 'kill-session', '-t', session_name]
@@ -115,7 +118,7 @@ def retry_if_not_connected(session_name, pane_id, file_path):
                 content = file.read()
                 if "Connecting" in content or "Disconnected" in content:
                     print("\033[31mTrying to connect to a bitcoin node...\033[0m")
-                    time.sleep(5)
+                    time.sleep(8)
                     
                 elif "Connected" in content:
                     return 0

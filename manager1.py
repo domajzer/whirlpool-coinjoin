@@ -19,21 +19,21 @@ SCENARIO = {
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
-        {"funds": [200000, 50000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},     
+        {"funds": [200000], "delay": 30},
+        {"funds": [1000000], "delay": 60},
+        {"funds": [1000000], "delay": 90},     
     ],
     "wallets": [
-        {"funds": [200000, 50000], "delay": 0},
+        {"funds": [20000], "delay": 0},
         {"funds": [3000000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
-        {"funds": [3000000, 15000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
-        {"funds": [3000000, 600000], "delay": 0},
-        {"funds": [1000000, 500000], "delay": 0},
+        {"funds": [1000000], "delay": 0},
+        {"funds": [1000000], "delay": 0},
+        {"funds": [1000000], "delay": 0},
+        {"funds": [3000000], "delay": 0},
+        {"funds": [1000000], "delay": 0},
+        {"funds": [1000000], "delay": 0},
+        {"funds": [3000000], "delay": 0},
+        {"funds": [1000000], "delay": 0},
     ],
 }
 
@@ -45,6 +45,7 @@ distributor = None
 clients = []
 premix_check = 0
 shutdown_event = threading.Event()
+global_idx = 0
 
 def prepare_image(name):
     prefixed_name = args.image_prefix + name
@@ -82,7 +83,7 @@ def start_infrastructure():
         "bitcoin-testnet-node",
         "bitcoin-testnet-node",
         ports={'18332/tcp': 18332},
-        cpu=2.0,
+        cpu=3.0,
         memory=3072,
         volumes={testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
     )
@@ -93,8 +94,6 @@ def start_infrastructure():
         rpc_user="TestnetUser1",
         rpc_password="Testnet123"
     )
-    node.wait_ready()
-    node.load_wallet()
     print("- started btc-node")
 
     whirlpool_db_ip, whirlpool_db_ports = driver.run(
@@ -103,30 +102,34 @@ def start_infrastructure():
         ports={'3306/tcp': 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1,
-        memory=1536,
-        volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}
+        memory=2048,
+        #volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}  
+        #TODO need to fix network, when mounting old DB
+        #java.sql.SQLException: null,  message from server: "Host '172.18.0.4' is not allowed to connect to this MySQL server"
     )
+    node.wait_ready()
+    print(node.load_wallet())
     print("- started whirlpool-db")
-    sleep(30)
+    sleep(25)
     whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
         "whirlpool-db-init",
         f"{args.image_prefix}whirlpool-db-init"
     )
-    sleep(5)
+    sleep(10)
     print("- started whirlpool-db-init")
     global whirlpool_server_ip
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={'8080/tcp': 8080},
-        cpu=1.0,
-        memory=2048,
+        cpu=2.0,
+        memory=2048
     )
-    sleep(60)
+    sleep(45)
     print("- started coordinator")
 
 def start_client(idx, wallet, client_name):
-    sleep(random.random() * 3)
+    sleep(wallet.get("delay", 20 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
     cmd = f"python3 /usr/src/app/automation.py -debug -mix -create -name {name}"
     try:
@@ -135,17 +138,22 @@ def start_client(idx, wallet, client_name):
             f"{args.image_prefix}whirlpool-sparrow-client",
             ports={37128: 37129 + idx},
             tty=True,
-            command=cmd
+            command=cmd,
+            cpu=1.3,
+            memory=2048,
         )
+        funds_btc = [fund / BTC for fund in wallet.get("funds", [])]
+        fund_btc = funds_btc[0]
         
         client = SparrowClient(
             host=ip if args.proxy else args.control_ip,
             port=37128 if args.proxy else manager_ports[37128],
             name=name,
-            delay=wallet.get("delay", 0),
+            delay=wallet.get("delay", 20),
             proxy=args.proxy,
+            amount=fund_btc
         )
-        sleep(15)
+        sleep(5)
         
         if not driver.setup_socat_in_container(name, whirlpool_server_ip):
             print(f"Failed to setup socat for {name}")
@@ -158,10 +166,12 @@ def start_client(idx, wallet, client_name):
     return client
 
 def start_clients(wallets, name):
+    global global_idx
     print("Starting clients")
     with multiprocessing.Pool() as pool:
-        args_for_starmap = [(idx, wallet, name) for idx, wallet in enumerate(wallets, start=len(clients))]
+        args_for_starmap = [(global_idx + idx, wallet, name) for idx, wallet in enumerate(wallets)]
         new_clients = pool.starmap(start_client, args_for_starmap)
+        global_idx += len(wallets)
         
         successfully_started_clients = [client for client in new_clients if client is not None]
 
@@ -208,7 +218,7 @@ def parse_address_send_btc(client, log_file_path):
                 if match:
                     tbtc_address = match.group(1)
                     
-                    if tbtc_address not in client.address:
+                    if tbtc_address != client.address:
                         with open(output_file_path, 'a') as file2:
                             file2.write(tbtc_address + '\n')
                             addresses_in_file.add(tbtc_address)
