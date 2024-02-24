@@ -92,7 +92,7 @@ def check_for_init_UTXO(file_path, options, date_pattern,counter):
             else:
                 print(f"{counter}\033[31mDate pattern not found in content. Waiting for input UXTO\033[0m")
                 if counter > 1:
-                    time.sleep(25)
+                    time.sleep(30)
                     return check_for_init_UTXO(file_path, options, date_pattern, counter-1)
                 return 1
                 
@@ -122,7 +122,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
         utility.print_tmux_screen('output.txt')
     time.sleep(1.5)
     
-    is_defined = check_for_init_UTXO(file_path, options, date_pattern, 15)
+    is_defined = check_for_init_UTXO(file_path, options, date_pattern, 25)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
     

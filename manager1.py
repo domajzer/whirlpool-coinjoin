@@ -3,7 +3,6 @@
 from manager.btc_node import BtcNode
 from manager.sparrow_client import SparrowClient
 from time import sleep, time
-import random
 import os
 import re
 import threading
@@ -19,9 +18,8 @@ SCENARIO = {
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
-        {"funds": [200000], "delay": 30},
-        {"funds": [1000000], "delay": 60},
-        {"funds": [1000000], "delay": 90},     
+        {"funds": [20000], "delay": 30},
+        {"funds": [10000], "delay": 60},  
     ],
     "wallets": [
         {"funds": [20000], "delay": 0},
@@ -182,16 +180,22 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
     global premix_check
     if shutdown_event.is_set():
         return
-    
+
+    completed_client_names = {client.name for client in premix_matched_containers}
+
     for client in clients:
         sleep(2)
         driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
+        
         if parse_address_send_btc(client, f"logs/{client.name}.txt") and (premix_check == 0):
             premix_matched_containers.add(client)
+            completed_client_names.add(client.name)
             print(f"Container {client.name} has finished mixing premix UTXO.")
         send_btc("logs/addresses_send.txt", client, btc_node)
+
+    all_client_names = {client.name for client in clients}
             
-    if (premix_matched_containers == set(clients)) and (premix_check == 0):
+    if completed_client_names == all_client_names and premix_check == 0:
         driver.upload("whirlpool-server", "stopfile", "whirlpool-server:/app/stopfile")
         premix_check = 1
     
@@ -202,7 +206,7 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
 def parse_address_send_btc(client, log_file_path):
     tbtc_address_pattern = r'\$\$Wallet\$\$Address\$\$: (tb1[a-z0-9]{39,59})'
     premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
-    output_file_path = "whirlpool-sparrow-client/tmp/addresses.txt"
+    output_file_path = "logs/addresses.txt"
     pattern_found = False
     
     try:
@@ -218,12 +222,12 @@ def parse_address_send_btc(client, log_file_path):
                 if match:
                     tbtc_address = match.group(1)
                     
-                    if tbtc_address != client.address:
+                    if not client.address:
                         with open(output_file_path, 'a') as file2:
                             file2.write(tbtc_address + '\n')
                             addresses_in_file.add(tbtc_address)
                             client.address = tbtc_address
-                            
+                                                        
                 if re.search(premix_UTXO_mixed_pattern, line):
                     pattern_found = True
                       
