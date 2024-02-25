@@ -1,7 +1,7 @@
 
 class SparrowClient:
     def __init__(
-        self, host="localhost", port=37128, name="whirlpool-sparrw-client", delay=0, proxy="", amount=0, address=None
+        self, host="localhost", port=37128, name="whirlpool-sparrw-client", delay=0, proxy="", amount=0, address=None, mneumonic=""
     ):
         self.host = host
         self.port = port
@@ -10,3 +10,4 @@ class SparrowClient:
         self.proxy = proxy
         self.amount = amount
         self.address = address
+        self.mnemonic = mneumonic

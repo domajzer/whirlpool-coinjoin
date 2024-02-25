@@ -50,7 +50,7 @@ class DockerDriver(Driver):
         self.client.containers.run(
             image,
             detach=True,
-            auto_remove=True,
+            auto_remove=False,
             name=name,
             hostname=name,
             network=self.network.id,

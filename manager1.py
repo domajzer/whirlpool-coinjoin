@@ -3,6 +3,7 @@
 from manager.btc_node import BtcNode
 from manager.sparrow_client import SparrowClient
 from time import sleep, time
+import manager.pathDerivation 
 import os
 import re
 import threading
@@ -187,7 +188,7 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
         sleep(2)
         driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
         
-        if parse_address_send_btc(client, f"logs/{client.name}.txt") and (premix_check == 0):
+        if parse_address_and_mneumonic(client, f"logs/{client.name}.txt") and (premix_check == 0):
             premix_matched_containers.add(client)
             completed_client_names.add(client.name)
             print(f"Container {client.name} has finished mixing premix UTXO.")
@@ -203,9 +204,10 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
         timer = threading.Timer(interval, capture_logs_periodically, [clients, btc_node, premix_matched_containers,interval])
         timer.start()
 
-def parse_address_send_btc(client, log_file_path):
+def parse_address_and_mneumonic(client, log_file_path):
     tbtc_address_pattern = r'\$\$Wallet\$\$Address\$\$: (tb1[a-z0-9]{39,59})'
     premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
+    mnemonic_pattern = r'Seed words: ((?:[a-z]+ ){11}[a-z]+)'
     output_file_path = "logs/addresses.txt"
     pattern_found = False
     
@@ -218,9 +220,9 @@ def parse_address_send_btc(client, log_file_path):
                     addresses_in_file = set(line.strip() for line in file2)
 
             for line in file:
-                match = re.search(tbtc_address_pattern, line)
-                if match:
-                    tbtc_address = match.group(1)
+                match_addres = re.search(tbtc_address_pattern, line)
+                if match_addres:
+                    tbtc_address = match_addres.group(1)
                     
                     if not client.address:
                         with open(output_file_path, 'a') as file2:
@@ -230,6 +232,12 @@ def parse_address_send_btc(client, log_file_path):
                                                         
                 if re.search(premix_UTXO_mixed_pattern, line):
                     pattern_found = True
+                
+                match_mnemonic = re.search(mnemonic_pattern, line)
+                if match_mnemonic:
+                    mnemonic = match_mnemonic.group(1)
+                    client.mnemonic = mnemonic
+                    print(client.mnemonic)
                       
     except FileNotFoundError:
         print(f"Log file {log_file_path} not found")
@@ -270,20 +278,27 @@ def run():
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         capture_logs_periodically(clients, node, premix_matched_containers)
         
-        while(premix_check == 0):
-            print("Waiting for the liquidity mix to finish")
-            sleep(60)
+        input("Press Enter to stop all other running containers...\n")
+        
+        #while(premix_check == 0):
+        #    print("Waiting for the liquidity mix to finish")
+        #    sleep(60)
             
-        print("Changing coordinator config")
-        start_clients(SCENARIO["wallets"], "wallets")
+
+
+        #print("Changing coordinator config")
+        #start_clients(SCENARIO["wallets"], "wallets")
 
     except KeyboardInterrupt:
         print()
         print("KeyboardInterrupt received")
     finally:
-        #if not args.no_logs:
-            #store_logs()
-        #driver.cleanup(args.image_prefix)
+        shutdown_event.set()
+        for client in clients:
+            manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
+        
+        sleep(10)
+        driver.cleanup(args.image_prefix)
         print('A')
 
 
@@ -298,7 +313,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--driver",
         type=str,
-        choices=["docker", "podman", "kubernetes"],
+        choices=["docker", "kubernetes"],
         default="docker",
     )
     parser.add_argument(

@@ -1,1 +1,3 @@
 sparrow-1.7.10-x86_64.tar.gz
+logs/*
+!logs/addresses_send.txt
