@@ -124,7 +124,9 @@ def start_infrastructure():
         cpu=2.0,
         memory=2048
     )
-    sleep(45)
+    sleep(10)
+    print(driver.get_container_ip("whirlpool-server"))
+    sleep(20)
     print("- started coordinator")
 
 def start_client(idx, wallet, client_name):
@@ -154,7 +156,7 @@ def start_client(idx, wallet, client_name):
         )
         sleep(5)
         
-        if not driver.setup_socat_in_container(name, whirlpool_server_ip):
+        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server")):
             print(f"Failed to setup socat for {name}")
             return None
         

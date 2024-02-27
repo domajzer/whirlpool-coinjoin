@@ -50,7 +50,7 @@ class DockerDriver(Driver):
         self.client.containers.run(
             image,
             detach=True,
-            auto_remove=False,
+            auto_remove=True,
             name=name,
             hostname=name,
             network=self.network.id,
@@ -118,6 +118,12 @@ class DockerDriver(Driver):
             print(f"Exception setting up socat in container {container_name}: {e}")
             return False
     
+    def get_container_ip(self, name):
+        container = self.client.containers.get(name)
+        container.reload()
+        ip_address = container.attrs['NetworkSettings']['Networks'][self.network.name]['IPAddress']
+        return ip_address
+
     def capture_and_save_logs(self, client, log_file_path):
         try:
             container = self.client.containers.get(client.name)
