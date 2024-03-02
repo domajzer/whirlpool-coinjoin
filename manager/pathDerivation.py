@@ -10,7 +10,6 @@ from cryptos import *
 from cryptotools.BTC import Xprv, Address
 from manager import btc_node
 #import btc_node
-import multiprocessing
 
 node = btc_node.BtcNode()
 
