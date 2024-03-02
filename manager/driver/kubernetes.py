@@ -226,6 +226,25 @@ class KubernetesDriver(Driver):
             else:
                 break
         resp.close()
+      
+    def get_container_ip(self, name):
+        try:
+            pod = self.client.read_namespaced_pod(name=name, namespace=self._namespace)
+            return pod.status.pod_ip
+        
+        except client.exceptions.ApiException as e:
+            print(f"An error occurred: {e}")
+            return None 
+        
+    def capture_and_save_logs(self, pod_name, log_file_path):
+        try:
+            logs = self.client.read_namespaced_pod_log(name=pod_name, namespace=self._namespace)
+            with open(log_file_path, "w") as log_file:
+                log_file.write(logs)
+            print(f"Captured and saved logs for {pod_name} to {log_file_path}")
+            
+        except Exception as e:
+            print(f"Failed to capture and save logs for {pod_name}: {e}")
 
     def cleanup(self, image_prefix=""):
         pods = self.client.list_namespaced_pod(namespace=self._namespace)

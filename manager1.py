@@ -21,18 +21,12 @@ SCENARIO = {
     "liquidity-wallets": [
         {"funds": [20000], "delay": 30},
         {"funds": [10000], "delay": 60},  
+        {"funds": [12000], "delay": 90},  
     ],
     "wallets": [
         {"funds": [20000], "delay": 0},
-        {"funds": [3000000], "delay": 0},
-        {"funds": [1000000], "delay": 0},
-        {"funds": [1000000], "delay": 0},
-        {"funds": [1000000], "delay": 0},
-        {"funds": [3000000], "delay": 0},
-        {"funds": [1000000], "delay": 0},
-        {"funds": [1000000], "delay": 0},
-        {"funds": [3000000], "delay": 0},
-        {"funds": [1000000], "delay": 0},
+        {"funds": [30000], "delay": 0},
+        {"funds": [10000], "delay": 0},
     ],
 }
 
@@ -81,7 +75,7 @@ def start_infrastructure():
     btc_node_ip, btc_node_ports = driver.run(
         "bitcoin-testnet-node",
         "bitcoin-testnet-node",
-        ports={'18332/tcp': 18332},
+        ports={18332: 18332},
         cpu=3.0,
         memory=3072,
         volumes={testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
@@ -98,7 +92,7 @@ def start_infrastructure():
     whirlpool_db_ip, whirlpool_db_ports = driver.run(
         "whirlpool-db",
         f"{args.image_prefix}whirlpool-db",
-        ports={'3306/tcp': 3307},
+        ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1,
         memory=2048,
@@ -110,6 +104,7 @@ def start_infrastructure():
     print(node.load_wallet())
     print("- started whirlpool-db")
     sleep(25)
+
     whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
         "whirlpool-db-init",
         f"{args.image_prefix}whirlpool-db-init"
@@ -120,13 +115,11 @@ def start_infrastructure():
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
-        ports={'8080/tcp': 8080},
+        ports={8080: 8080},
         cpu=2.0,
         memory=2048
     )
-    sleep(10)
-    print(driver.get_container_ip("whirlpool-server"))
-    sleep(20)
+    sleep(30)
     print("- started coordinator")
 
 def start_client(idx, wallet, client_name):
@@ -199,7 +192,7 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
     all_client_names = {client.name for client in clients}
             
     if completed_client_names == all_client_names and premix_check == 0:
-        driver.upload("whirlpool-server", "stopfile", "whirlpool-server:/app/stopfile")
+        driver.upload("whirlpool-server", "stopfile", "/app/stopfile")
         premix_check = 1
     
     if not shutdown_event.is_set():
@@ -280,16 +273,14 @@ def run():
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         capture_logs_periodically(clients, node, premix_matched_containers)
         
-        input("Press Enter to stop all other running containers...\n")
-        
-        #while(premix_check == 0):
-        #    print("Waiting for the liquidity mix to finish")
-        #    sleep(60)
+        while(premix_check == 0):
+            print("Waiting for the liquidity mix to finish")
+            sleep(60)
             
-
-
-        #print("Changing coordinator config")
-        #start_clients(SCENARIO["wallets"], "wallets")
+        print("Changing coordinator config")
+        start_clients(SCENARIO["wallets"], "wallets")
+        
+        input("Press Enter to stop all other running containers...\n")
 
     except KeyboardInterrupt:
         print()

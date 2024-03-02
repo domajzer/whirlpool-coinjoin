@@ -8,6 +8,11 @@ os.environ['CRYPTOTOOLS_RPC_PW'] = 'Testnet123'
 
 from cryptos import *
 from cryptotools.BTC import Xprv, Address
+from manager import btc_node
+#import btc_node
+import multiprocessing
+
+node = btc_node.BtcNode()
 
 def send_all_tbtc_back(mnemonic):
     xprv = Xprv.from_mnemonic(mnemonic)
@@ -16,13 +21,16 @@ def send_all_tbtc_back(mnemonic):
         find_UTXO(xprv, type)
 
 def find_UTXO(xprv, account_type):
-    for i in range(25):
+    addresses = []
+    keys_info = []
+    
+    for i in range(30):
         if account_type == 2147483645:
             key = xprv/84./1./2147483645./0/i
         elif account_type == 2147483646:
             key = xprv/84./1./2147483646./0/i
         elif account_type == 2147483644:
-            key = xprv/84./1./2147483644./0/i
+            key = xprv/84./1./2147483644./1/i
         elif account_type == 0:
             key = xprv/84./1./0./0/i
 
@@ -30,14 +38,25 @@ def find_UTXO(xprv, account_type):
         private_key_hex = child_private_key.hex()
         address = key.address('P2WPKH')
         
+        addresses.append(address)
+        keys_info.append((address, private_key_hex))
         print(f"Derived Address: {address}. Type {account_type} and Account: {i}")
         print(f"PrivateKey Hex: {private_key_hex}")
-        test_address = Address(address)
-        amount = test_address.balance()
-        amount = (int(amount * 100_000_000))
-        print(amount)
+        
+    utxos = node.check_utxos_for_address(addresses)
+
+    for address, private_key_hex in keys_info:
+        address_utxos = [utxo for utxo in utxos if f"addr({address})" in utxo.get('desc', '')]
+        if not address_utxos:
+            print(f"No UTXOs found for address {address}.")
+            continue
+        
+        amount = sum(utxo['amount'] for utxo in address_utxos)
+        amount_satoshis = int(amount * 100_000_000)
+        print(f"Amount: {amount_satoshis} satoshis for address {address}")
+        
         if amount > 0:
-            tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qgvjp9dnyl3wul23jhq84q7zn6068dekh8e604e", amount - 300)
+            tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qg4hpr3un36e7mlax5gzcjm2dnxs76n726alztk", amount_satoshis  - 300)
             print(f"Transaction Hash: {tx_hash}")
     
 def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, amount_satoshis):

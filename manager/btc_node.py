@@ -5,7 +5,7 @@ from time import sleep
 WALLET = "MainTestnetWallet"
 
 class BtcNode:
-    def __init__(self, host="bitcoin-testnet-node", port=18332, rpc_user="TestnetUser1", rpc_password="Testnet123", internal_ip="", proxy=""):
+    def __init__(self, host="localhost", port=18332, rpc_user="TestnetUser1", rpc_password="Testnet123", internal_ip="", proxy=""):
         self.host = host
         self.port = port
         self.rpc_user = rpc_user
@@ -23,13 +23,34 @@ class BtcNode:
                 data=json.dumps(request),
                 auth=(self.rpc_user, self.rpc_password),
                 proxies=dict(http=self.proxy),
-                timeout=5,
+                timeout=30,
             )
         except requests.exceptions.Timeout:
             return "timeout"
+        
         if response.json()["error"] is not None:
             raise Exception(response.json()["error"])
         return response.json()["result"]
+
+    def check_utxos_for_address(self, addresses):
+        scan_objects = [f"addr({address})" for address in addresses]
+        request = {
+            "method": "scantxoutset",
+            "params": ["start", [f"addr({address})" for address in addresses]],
+        }
+        
+        response = self._rpc(request)
+        if response and 'success' in response and response['success']:
+            if 'unspents' in response and response['unspents']:
+                return response['unspents']
+            
+            else:
+                print(f"UTXOs found but 'unspents' list is empty for addresses: {addresses}")
+                return []
+            
+        else:
+            print(f"Failed to get UTXOs for {addresses} or no UTXOs found.")
+            return []
 
     def fund_address(self, address, amount):
         request = {
