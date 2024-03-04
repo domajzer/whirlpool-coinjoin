@@ -137,16 +137,19 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
     print()
     print(is_defined)
     print()
+    time.sleep(5)
     
     if is_defined == 0:
         keystrokes = ['Tab', 'Enter']
         keystrokes_2 = ['Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
         continue_loop = True
+        
         while continue_loop:
             print("In LOOP")
             utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
             if options.debug: 
                 utility.print_tmux_screen('output.txt')
+                
             try:
                 print("In try")
                 with open('output.txt', 'r') as file:
@@ -155,11 +158,23 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
                         print("In calculating")
                         utility.send_keystroke_to_tmux(tmux_session_name, keystrokes, options)
                         utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+                        
                         if options.debug: 
                             utility.print_tmux_screen('output.txt')
-                        time.sleep(5)
+                            
+                        while "Broadcast Successful" not in content:
+                            time.sleep(5) #Broadcasting premix
+                            utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+                        
+                            if options.debug: 
+                                utility.print_tmux_screen('output.txt')
+                            
+                            with open('output.txt', 'r') as file:
+                                content = file.read()
+                            
                         utility.send_keystroke_to_tmux(tmux_session_name, keystrokes_2, options)
                         utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+                        
                         if options.debug: 
                             utility.print_tmux_screen('output.txt')
                         continue_loop = False
@@ -171,16 +186,54 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
                 
             time.sleep(3)
         
-def start_mix(tmux_session_name, options): #pp_variable = Premix/Postmix variable
+def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix variable
     counter = 0 
+    signal = 0
+    start_UTXO = 0
     #start premix 
-    start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'P', 'Enter', 'U', 'Enter']
-    utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
+    start_mixing_keystrokes_premix = ['W', 'Enter', 'Enter', 'P', 'Enter', 'T', 'Enter']
+    start_mixing_keystrokes_postmix = ['W', 'Enter', 'Enter', 'P', 'P', 'Enter', 'T', 'Enter']
+    refresh_mixing_keystrokes = ['Tab','Tab','Enter'] 
+    
+    utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes_premix if pp else start_mixing_keystrokes_postmix, options)
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
     
     if options.debug: 
         utility.print_tmux_screen('output.txt')
+        
+    start_UTXO = utility.check_for_UTXO('output.txt')
     
+    if (start_UTXO == 0):
+        utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
+        
+        time.sleep(45)
+        utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+        
+        if options.debug: 
+            utility.print_tmux_screen('output.txt')
+        start_UTXO = utility.check_for_UTXO('output.txt')
+        
+        while (start_UTXO == 0):  
+            utility.send_keystroke_to_tmux(tmux_session_name, ['Enter'], options)
+            utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+        
+            if options.debug: 
+                utility.print_tmux_screen('output.txt')
+                
+            start_UTXO = utility.check_for_UTXO('output.txt')
+        
+    utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
+    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+        
+    if options.debug: 
+        utility.print_tmux_screen('output.txt')
+        
+        utility.send_keystroke_to_tmux(tmux_session_name, ['U','Enter'], options)
+    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+        
+    if options.debug: 
+        utility.print_tmux_screen('output.txt')
+
     try:
         with open('output.txt', 'r') as file:
             content = file.read()
@@ -189,7 +242,6 @@ def start_mix(tmux_session_name, options): #pp_variable = Premix/Postmix variabl
                 start_mixing_keystrokes_2 = ['Tab', 'Enter']
                 utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes_2, options)
                 utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-                
                 if options.debug: 
                     utility.print_tmux_screen('output.txt')
             else:
@@ -361,15 +413,19 @@ def main():
         if options.create:
             create_wallet(tmux_session_name, options)
             get_adress(tmux_session_name, options)
-            add_to_pool(tmux_session_name, options, 'output.txt', 1)
-            time.sleep(5)
             
         else:
             initialize_wallet(tmux_session_name, options)
 
+        if options.pool:
+            add_to_pool(tmux_session_name, options, 'output.txt', 1)
+            time.sleep(6)
+            
         # Start premix
         if options.mix:
-            start_mix(tmux_session_name, options)
+            start_mix(tmux_session_name, options, 1)
+            time.sleep(120)
+            start_mix(tmux_session_name, options, 0)
 
         while True:
             time.sleep(1)

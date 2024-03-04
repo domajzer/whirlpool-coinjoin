@@ -23,7 +23,7 @@ class BtcNode:
                 data=json.dumps(request),
                 auth=(self.rpc_user, self.rpc_password),
                 proxies=dict(http=self.proxy),
-                timeout=30,
+                timeout=45,
             )
         except requests.exceptions.Timeout:
             return "timeout"
@@ -33,13 +33,13 @@ class BtcNode:
         return response.json()["result"]
 
     def check_utxos_for_address(self, addresses):
-        scan_objects = [f"addr({address})" for address in addresses]
         request = {
             "method": "scantxoutset",
             "params": ["start", [f"addr({address})" for address in addresses]],
         }
         
         response = self._rpc(request)
+        
         if response and 'success' in response and response['success']:
             if 'unspents' in response and response['unspents']:
                 return response['unspents']

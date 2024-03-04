@@ -8,8 +8,8 @@ os.environ['CRYPTOTOOLS_RPC_PW'] = 'Testnet123'
 
 from cryptos import *
 from cryptotools.BTC import Xprv, Address
-from manager import btc_node
-#import btc_node
+from manager import btc_node #USE WHEN RUNNING MANAGER1.PY
+#import btc_node #USE WHEN RUNNING PATHDERVIATION.PY AS A SOLO APPLICATION.
 
 node = btc_node.BtcNode()
 
@@ -54,7 +54,7 @@ def find_UTXO(xprv, account_type):
         amount_satoshis = int(amount * 100_000_000)
         print(f"Amount: {amount_satoshis} satoshis for address {address}")
         
-        if amount > 0:
+        if amount > 300:
             tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qg4hpr3un36e7mlax5gzcjm2dnxs76n726alztk", amount_satoshis  - 300)
             print(f"Transaction Hash: {tx_hash}")
     

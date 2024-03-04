@@ -20,15 +20,16 @@ SCENARIO = {
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
         {"funds": [20000], "delay": 30},
-        {"funds": [10000], "delay": 60},  
-        {"funds": [12000], "delay": 90},  
+        {"funds": [10000], "delay": 60},
+        {"funds": [10000], "delay": 90},
     ],
     "wallets": [
-        {"funds": [20000], "delay": 0},
-        {"funds": [30000], "delay": 0},
-        {"funds": [10000], "delay": 0},
+        {"funds": [8500], "delay": 30},
+        {"funds": [10000], "delay": 60},
+
     ],
 }
+
 
 args = None
 driver = None
@@ -125,7 +126,8 @@ def start_infrastructure():
 def start_client(idx, wallet, client_name):
     sleep(wallet.get("delay", 20 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
-    cmd = f"python3 /usr/src/app/automation.py -debug -mix -create -name {name}"
+    cmd = f"python3 /usr/src/app/automation.py -debug -mix -pool -create -name {name}"
+    #cmd = f"python3 /usr/src/app/automation.py -debug -create -name {name}"
     try:
         ip, manager_ports = driver.run(
             name,
@@ -232,12 +234,26 @@ def parse_address_and_mneumonic(client, log_file_path):
                 if match_mnemonic:
                     mnemonic = match_mnemonic.group(1)
                     client.mnemonic = mnemonic
-                    print(client.mnemonic)
                       
     except FileNotFoundError:
         print(f"Log file {log_file_path} not found")
     
     return pattern_found
+
+def wait_for_new_block(self):
+    response = self.get_blockchain_info()
+    initial_block = response["blocks"]
+    
+    while True:
+        response = self.get_blockchain_info()
+        new_block = response["blocks"]
+        
+        if new_block > initial_block:
+            print(f"New block found: {new_block}")
+            break
+        
+        print("Waiting for a new block...")
+        sleep(30)
 
 def send_btc(output_path, client, btc_node):
     try:
@@ -286,10 +302,15 @@ def run():
         print()
         print("KeyboardInterrupt received")
     finally:
+        driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
+        driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
+        
+        wait_for_new_block()
+        
         shutdown_event.set()
         for client in clients:
             manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
-        
+    
         sleep(10)
         driver.cleanup(args.image_prefix)
         print('A')
