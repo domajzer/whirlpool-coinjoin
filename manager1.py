@@ -24,12 +24,11 @@ SCENARIO = {
         {"funds": [10000], "delay": 90},
     ],
     "wallets": [
-        {"funds": [8500], "delay": 30},
+        {"funds": [18500], "delay": 30},
         {"funds": [10000], "delay": 60},
-
+        {"funds": [10000], "delay": 90},
     ],
 }
-
 
 args = None
 driver = None
@@ -77,7 +76,7 @@ def start_infrastructure():
         "bitcoin-testnet-node",
         "bitcoin-testnet-node",
         ports={18332: 18332},
-        cpu=3.0,
+        cpu=3.5,
         memory=3072,
         volumes={testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
     )
@@ -174,7 +173,7 @@ def start_clients(wallets, name):
         clients.extend(new_clients)
         print(f"Successfully started {len(successfully_started_clients)} clients.")
 
-def capture_logs_periodically(clients, btc_node, premix_matched_containers, interval=55):
+def capture_logs_periodically(clients, btc_node, premix_matched_containers, interval=60):
     global premix_check
     if shutdown_event.is_set():
         return
@@ -240,12 +239,12 @@ def parse_address_and_mneumonic(client, log_file_path):
     
     return pattern_found
 
-def wait_for_new_block(self):
-    response = self.get_blockchain_info()
+def wait_for_new_block(node):
+    response = node.get_blockchain_info()
     initial_block = response["blocks"]
     
     while True:
-        response = self.get_blockchain_info()
+        response = node.get_blockchain_info()
         new_block = response["blocks"]
         
         if new_block > initial_block:
@@ -301,11 +300,12 @@ def run():
     except KeyboardInterrupt:
         print()
         print("KeyboardInterrupt received")
+        
     finally:
         driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
         driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
         
-        wait_for_new_block()
+        wait_for_new_block(node)
         
         shutdown_event.set()
         for client in clients:

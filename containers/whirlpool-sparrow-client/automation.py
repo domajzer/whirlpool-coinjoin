@@ -33,6 +33,7 @@ def check_wallet_initialization(file_path):
             if ("Wallets" in content) and ("Preferences" in content) and ("Quit" in content) and ("Connecting" not in content):
                 print("\033[32mWallet initialization successful\033[0m")
                 return 0
+            
             else:
                 print("\033[31mWallet initialization not confirmed\033[0m")
                 return 1
@@ -58,7 +59,9 @@ def initialize_wallet(tmux_session_name, options):
         utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
         time.sleep(10)
 
-def check_for_init_UTXO(file_path, options, date_pattern,counter):
+def check_for_init_UTXO(file_path, options, date_pattern, counter):
+    refresh_mixing_keystrokes = ['Tab','Tab','Enter'] 
+
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
     if options.debug: 
         utility.print_tmux_screen('output.txt')
@@ -90,10 +93,13 @@ def check_for_init_UTXO(file_path, options, date_pattern,counter):
                         time.sleep(30)
             
             else:
-                print(f"{counter}\033[31mDate pattern not found in content. Waiting for input UXTO\033[0m")
+                print(f"{counter} \033[31m  Date pattern not found in content. Waiting for input UXTO\033[0m")
                 if counter > 1:
+                                            
+                    #TODO PROGRAM REFRESH LIKE IN ADD TO MIX. FOUND IN 1/30 TRIES THAT UTXO WONT LOAD WITHOUT REFRESH IN HIGH LOADS
                     time.sleep(30)
                     return check_for_init_UTXO(file_path, options, date_pattern, counter-1)
+                
                 return 1
                 
     except FileNotFoundError:
@@ -122,7 +128,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
         utility.print_tmux_screen('output.txt')
     time.sleep(1.5)
     
-    is_defined = check_for_init_UTXO(file_path, options, date_pattern, 25)
+    is_defined = check_for_init_UTXO(file_path, options, date_pattern, 30)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
     
@@ -134,9 +140,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
     if options.debug: 
         utility.print_tmux_screen('output.txt')
         
-    print()
-    print(is_defined)
-    print()
+    print("\n", is_defined, "\n")
     time.sleep(5)
     
     if is_defined == 0:
@@ -181,6 +185,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
                         
             except FileNotFoundError:
                 print(f"File not found: {'output.txt'}")
+                
             except Exception as e:
                 print(f"An error occurred: {e}")    
                 
@@ -191,9 +196,11 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
     signal = 0
     start_UTXO = 0
     #start premix 
+    
     start_mixing_keystrokes_premix = ['W', 'Enter', 'Enter', 'P', 'Enter', 'T', 'Enter']
     start_mixing_keystrokes_postmix = ['W', 'Enter', 'Enter', 'P', 'P', 'Enter', 'T', 'Enter']
     refresh_mixing_keystrokes = ['Tab','Tab','Enter'] 
+    return_from_transac_keystrokes = ['Tab','Enter']
     
     utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes_premix if pp else start_mixing_keystrokes_postmix, options)
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
@@ -203,7 +210,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         
     start_UTXO = utility.check_for_UTXO('output.txt')
     
-    if (start_UTXO == 0):
+    if (start_UTXO == 0): #If there was a problem with loading UTXO
         utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
         
         time.sleep(45)
@@ -221,6 +228,13 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
                 utility.print_tmux_screen('output.txt')
                 
             start_UTXO = utility.check_for_UTXO('output.txt')
+            
+    else: #If there was no problem loading UTXO
+        utility.send_keystroke_to_tmux(tmux_session_name, return_from_transac_keystrokes, options)
+        utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+        
+        if options.debug: 
+            utility.print_tmux_screen('output.txt')
         
     utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
@@ -249,6 +263,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
     
     except FileNotFoundError:
         print(f"File not found: {'output.txt'}")
+        
     except Exception as e:
         print(f"An error occurred: {e}")               
     
@@ -278,6 +293,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
                     
     except FileNotFoundError:
         print(f"File not found: {'output.txt'}")
+        
     except Exception as e:
         print(f"An error occurred: {e}")
     
@@ -300,6 +316,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
           
     except FileNotFoundError:
         print(f"File not found: {'output.txt'}")
+        
     except Exception as e:
         print(f"An error occurred: {e}")
     
@@ -353,6 +370,7 @@ def create_wallet(tmux_session_name, options):
     
     continue_keystrokes_3 = ['Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Tab', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, continue_keystrokes_3, options)
+    time.sleep(5)
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
 
     if options.debug: 
@@ -378,6 +396,7 @@ def create_wallet(tmux_session_name, options):
 def get_adress(tmux_session_name, options):
     start_keystrokes = ['W', 'Enter', 'Enter', 'R', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, start_keystrokes, options)
+    time.sleep(5)
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
     
     address = utility.parse_address("output.txt")

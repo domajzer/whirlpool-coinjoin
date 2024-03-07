@@ -140,9 +140,10 @@ class DockerDriver(Driver):
             filter(
                 lambda x: x.attrs["Config"]["Image"]
                 in (
-                    f"{image_prefix}btc-node",
-                    f"{image_prefix}wasabi-backend",
-                    f"{image_prefix}wasabi-client",
+                    f"{image_prefix}bitcoin-testnet-node",
+                    f"{image_prefix}whirlpool-db",
+                    f"{image_prefix}whirlpool-server",
+                    f"{image_prefix}whirlpool-sparrow-client",                    
                 ),
                 self.client.containers.list(),
             )
