@@ -47,11 +47,9 @@ def check_wallet_initialization(file_path):
 def initialize_wallet(tmux_session_name, options):
     start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'Enter', 'Tab', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
-    time.sleep(2)
     
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    time.sleep(2)
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
     
     check = check_wallet_initialization('output.txt')
     if check == 1:
@@ -59,57 +57,57 @@ def initialize_wallet(tmux_session_name, options):
         utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
         time.sleep(10)
 
-def check_for_init_UTXO(file_path, options, date_pattern, counter):
-    refresh_mixing_keystrokes = ['Tab','Tab','Enter'] 
+def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, counter):
+    refresh_mixing_keystrokes = ['Tab', 'Tab', 'Enter', 'Tab'] 
 
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
-    try:
-        with open(file_path, 'r') as file:
-            content = file.read()
-            
-            if re.search(date_pattern, content):
-                print("\033[32mDate pattern found in content\033[0m")
-                return 0
-                
-            elif "Unconfirmed" in content:
-                for _ in range(60):
-                    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-                    if options.debug: 
-                        utility.print_tmux_screen('output.txt')
-                        
-                    with open(file_path, 'r') as file:
-                        content = file.read()
-                        
-                    if re.search(date_pattern, content):
-                        print("\033[32mDate pattern found in content\033[0m")
-                        return 0
-                    
-                    elif "Unconfirmed" not in content:
-                        break
-                    
-                    else:
+    while counter > 0:
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+        try:
+            with open(file_path, 'r') as file:
+                content = file.read()
+                if re.search(date_pattern, content):
+                    print("\033[32mDate pattern found in content\033[0m")
+                    return 0
+
+                elif "Unconfirmed" in content:
+                    for _ in range(60):
+                        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+
+                        with open(file_path, 'r') as file:
+                            content = file.read()
+
+                        if re.search(date_pattern, content):
+                            print("\033[32mDate pattern found in content\033[0m")
+                            return 0
+
+                        elif "Unconfirmed" not in content:
+                            break
+
+                        else:
+                            time.sleep(30)
+
+                else:
+                    print(f"{counter} \033[31m  Date pattern not found in content. Waiting for input UTXO\033[0m")
+                    print(counter)
+                    if ((counter % 5) == 1):
+                        print("in refresh")
+                        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+                        utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
                         time.sleep(30)
+                        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+                    counter -= 1
+                    continue
+
+                return 1  
             
-            else:
-                print(f"{counter} \033[31m  Date pattern not found in content. Waiting for input UXTO\033[0m")
-                if counter > 1:
-                                            
-                    #TODO PROGRAM REFRESH LIKE IN ADD TO MIX. FOUND IN 1/30 TRIES THAT UTXO WONT LOAD WITHOUT REFRESH IN HIGH LOADS
-                    time.sleep(30)
-                    return check_for_init_UTXO(file_path, options, date_pattern, counter-1)
-                
-                return 1
-                
-    except FileNotFoundError:
-        print(f"File not found: {file_path}")
-        return 2
+        except FileNotFoundError:
+            print(f"File not found: {file_path}")
+            return 2
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return 2
-
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return 2
+        
 def add_to_pool(tmux_session_name, options, file_path, mix_type):
     #start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
     is_defined = 1
@@ -128,7 +126,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
         utility.print_tmux_screen('output.txt')
     time.sleep(1.5)
     
-    is_defined = check_for_init_UTXO(file_path, options, date_pattern, 30)
+    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 30)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
     
@@ -193,7 +191,6 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
         
 def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix variable
     counter = 0 
-    signal = 0
     start_UTXO = 0
     #start premix 
     
@@ -203,10 +200,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
     return_from_transac_keystrokes = ['Tab','Enter']
     
     utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes_premix if pp else start_mixing_keystrokes_postmix, options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
         
     start_UTXO = utility.check_for_UTXO('output.txt')
     
@@ -214,39 +208,26 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
         
         time.sleep(45)
-        utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-        
-        if options.debug: 
-            utility.print_tmux_screen('output.txt')
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+
         start_UTXO = utility.check_for_UTXO('output.txt')
         
         while (start_UTXO == 0):  
             utility.send_keystroke_to_tmux(tmux_session_name, ['Enter'], options)
-            utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-        
-            if options.debug: 
-                utility.print_tmux_screen('output.txt')
+            utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                 
             start_UTXO = utility.check_for_UTXO('output.txt')
             
     else: #If there was no problem loading UTXO
         utility.send_keystroke_to_tmux(tmux_session_name, return_from_transac_keystrokes, options)
-        utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-        
-        if options.debug: 
-            utility.print_tmux_screen('output.txt')
-        
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+
     utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+
         
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
-        
-        utility.send_keystroke_to_tmux(tmux_session_name, ['U','Enter'], options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-        
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.send_keystroke_to_tmux(tmux_session_name, ['U','Enter'], options)
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
     try:
         with open('output.txt', 'r') as file:
@@ -347,17 +328,11 @@ def create_wallet(tmux_session_name, options):
     seed_file = 'seed.txt'
     start_keystrokes = ['W', 'Enter', 'C', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, start_keystrokes, options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
     
     continue_keystrokes = list(options.name)
     utility.send_keystroke_to_tmux(tmux_session_name, continue_keystrokes, options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
     
     continue_keystrokes_2 = ['Tab', 'Enter', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Enter', '1', '1', '1', 'Enter', 'Tab', 'Tab', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, continue_keystrokes_2, options)
@@ -371,10 +346,7 @@ def create_wallet(tmux_session_name, options):
     continue_keystrokes_3 = ['Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Tab', 'Enter']
     utility.send_keystroke_to_tmux(tmux_session_name, continue_keystrokes_3, options)
     time.sleep(5)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
     try:
         with open('output.txt', 'r') as file:
@@ -413,8 +385,8 @@ def main():
     
     for attempt in range(5):  
         utility.start_tmux_session(tmux_session_name, sparrow_command)
-        time.sleep(5)  
-        connected_status = utility.retry_if_not_connected('sparrow_wallet', '0', 'output.txt')
+        time.sleep(10)  
+        connected_status = utility.retry_if_not_connected('sparrow_wallet', '0', 'output.txt', options)
         
         if connected_status == 0:
             print(f"\033[32mWallet successfully connected to bitcoin node.\033[0m")

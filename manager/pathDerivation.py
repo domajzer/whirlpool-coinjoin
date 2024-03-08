@@ -55,7 +55,7 @@ def find_UTXO(xprv, account_type):
         print(f"Amount: {amount_satoshis} satoshis for address {address}")
         
         if amount > 300:
-            tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qg4hpr3un36e7mlax5gzcjm2dnxs76n726alztk", amount_satoshis  - 300)
+            tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qc0g63yf95g6kgz9dt960fdlsar0klfrnmz2qxs", amount_satoshis  - 300)
             print(f"Transaction Hash: {tx_hash}")
     
 def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, amount_satoshis):

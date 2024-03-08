@@ -43,16 +43,17 @@ def send_keystroke_to_tmux(session_name, keystrokes, options):
         time.sleep(3.6)
         #print(keystroke)
         if options.debugf:
-            capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt')
+            capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
 def print_tmux_screen(file_path):
     with open(file_path, 'r') as file:
         contents = file.read()
         print(contents)
 
-def capture_and_print_tmux_screen(session_name, pane_id, output_file):
+def capture_and_print_tmux_screen(session_name, pane_id, output_file, options):
     capture_tmux_output(session_name, pane_id, output_file)
-    print_tmux_screen(output_file)
+    if options.debug or options.debugf: 
+            print_tmux_screen(output_file)
     
 def parse_seed(input_file, output_file):
     with open(input_file, 'r') as file:
@@ -110,15 +111,15 @@ def check_for_UTXO(file_path):
     except Exception as e:
         print(f"An error occurred: {e}")
         
-def retry_if_not_connected(session_name, pane_id, file_path):
+def retry_if_not_connected(session_name, pane_id, file_path, options):
     for _ in range(10):
         try:
-            capture_and_print_tmux_screen(session_name, pane_id, file_path)
+            capture_and_print_tmux_screen(session_name, pane_id, file_path, options)
             with open(file_path, 'r') as file:
                 content = file.read()
                 if "Connecting" in content or "Disconnected" in content:
                     print("\033[31mTrying to connect to a bitcoin node...\033[0m")
-                    time.sleep(8)
+                    time.sleep(10)
                     
                 elif "Connected" in content:
                     return 0
