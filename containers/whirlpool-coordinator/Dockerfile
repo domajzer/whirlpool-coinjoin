@@ -6,8 +6,8 @@ WORKDIR /app/whirlpool-server
 RUN mvn clean install -Dmaven.test.skip=true
 
 COPY custom.properties /app/whirlpool-server/config.properties
-COPY logs/mixs.csv /app/logs/mixs.csv
-COPY logs/activity.csv /app/logs/activity.csv
+COPY mixs.csv /app/logs/mixs.csv
+COPY activity.csv /app/logs/activity.csv
 COPY script.sh .
 RUN chmod +x script.sh 
 

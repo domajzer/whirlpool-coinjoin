@@ -19,14 +19,11 @@ SCENARIO = {
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
-        {"funds": [20000], "delay": 30},
-        {"funds": [10000], "delay": 60},
-        {"funds": [10000], "delay": 90},
+        {"funds": [8000,6000,6000], "delay": 30},
+        {"funds": [10000], "delay": 180},
     ],
     "wallets": [
         {"funds": [18500], "delay": 30},
-        {"funds": [10000], "delay": 60},
-        {"funds": [10000], "delay": 90},
     ],
 }
 
@@ -76,8 +73,8 @@ def start_infrastructure():
         "bitcoin-testnet-node",
         "bitcoin-testnet-node",
         ports={18332: 18332},
-        cpu=3.5,
-        memory=3072,
+        cpu=4,
+        memory=4096,
         volumes={testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
     )
     global node
@@ -194,7 +191,7 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
             completed_client_names.add(client.name)
             print(f"Container {client.name} has finished mixing premix UTXO.")
             
-        send_btc("logs/addresses_send.txt", client, btc_node)
+        send_btc(client, btc_node)
 
     all_client_names = {client.name for client in clients}
             
@@ -207,31 +204,14 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
         timer.start()
 
 def parse_address_and_mneumonic(client, log_file_path):
-    tbtc_address_pattern = r'\$\$Wallet\$\$Address\$\$: (tb1[a-z0-9]{39,59})'
     premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
     mnemonic_pattern = r'Seed words: ((?:[a-z]+ ){11}[a-z]+)'
-    output_file_path = "logs/addresses.txt"
     pattern_found = False
     
     try:
         with open(log_file_path, 'r') as file:
-            addresses_in_file = set()
 
-            if os.path.exists(output_file_path):
-                with open(output_file_path, 'r') as file2:
-                    addresses_in_file = set(line.strip() for line in file2)
-
-            for line in file:
-                match_addres = re.search(tbtc_address_pattern, line)
-                if match_addres:
-                    tbtc_address = match_addres.group(1)
-                    
-                    if not client.address:
-                        with open(output_file_path, 'a') as file2:
-                            file2.write(tbtc_address + '\n')
-                            addresses_in_file.add(tbtc_address)
-                            client.address = tbtc_address
-                                                        
+            for line in file:                           
                 if re.search(premix_UTXO_mixed_pattern, line):
                     pattern_found = True
                 
@@ -244,6 +224,27 @@ def parse_address_and_mneumonic(client, log_file_path):
         print(f"Log file {log_file_path} not found")
     
     return pattern_found
+
+def send_btc(client, btc_node):
+    try:
+        if client.amount and (len(client.amount) != client.account_number) and (len(client) != 0):
+            for amount in client.amount:
+                if amount > 0:
+                    try:
+                        client.address.append(manager.pathDerivation.find_next_address(client.mnemonic, client.account_number))
+                        transaction_info = btc_node.fund_address(client.address[client.account_number], amount)
+                        
+                        print("Transaction info:", transaction_info)
+                        client.account_number += 1
+
+                    except Exception as e:
+                        print(f"Error sending BTC to {client.address}: {e}")
+                                                
+                else:
+                    raise ValueError(f"Error sending BTC to {client.address}: Not valid amount: {amount}")
+             
+    except Exception as e:
+        print(f"Error in send_btc: {e}")
 
 def wait_for_new_block(node):
     response = node.get_blockchain_info()
@@ -259,33 +260,7 @@ def wait_for_new_block(node):
         
         print("Waiting for a new block...")
         sleep(30)
-
-def send_btc(output_path, client, btc_node):
-    try:
-        if client.address and client.amount:
-            with open(output_path, 'r') as output_file:
-                sent_addresses = set(output_file.read().splitlines())
         
-            if client.address not in sent_addresses:
-                with open(output_path, 'a') as output_file:
-                    for amount in client.amount:
-                        if amount > 0:
-                            try:
-                                transaction_info = btc_node.fund_address(client.address, amount)
-                                print("Transaction info:", transaction_info)
-
-                            except Exception as e:
-                                print(f"Error sending BTC to {client.address}: {e}")
-                            
-                            output_file.write(client.address + '\n')
-                                
-                        else:
-                            raise ValueError(f"Error sending BTC to {client.address}: Not valid amount: {amount}")
-
-             
-    except Exception as e:
-        print(f"Error in send_btc: {e}")
-
 def run():
     if args.scenario:
         with open(args.scenario) as f:

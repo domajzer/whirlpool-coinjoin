@@ -57,7 +57,7 @@ class BtcNode:
             "method": "sendtoaddress",
             "params": [address, amount],
         }
-        self._rpc(request, WALLET)
+        return self._rpc(request, WALLET)
 
     def get_wallet_info(self):
         request = {

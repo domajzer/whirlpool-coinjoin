@@ -112,7 +112,7 @@ def check_for_UTXO(file_path):
         print(f"An error occurred: {e}")
         
 def retry_if_not_connected(session_name, pane_id, file_path, options):
-    for _ in range(10):
+    for _ in range(20):
         try:
             capture_and_print_tmux_screen(session_name, pane_id, file_path, options)
             with open(file_path, 'r') as file:

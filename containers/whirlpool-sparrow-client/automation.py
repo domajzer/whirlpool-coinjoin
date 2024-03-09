@@ -110,35 +110,43 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
         
 def add_to_pool(tmux_session_name, options, file_path, mix_type):
     #start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
+    back_keystrokes = ['Tab', 'Enter', 'Tab', 'Enter']
+    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
     is_defined = 1
     
     if mix_type == 1:
         start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'U', 'Enter']  #First time wallet use
     else:
         start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter']
-        
-    back_keystrokes = ['Tab', 'Enter', 'Tab', 'Enter']
-    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
     
     utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+
     time.sleep(1.5)
     
     is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 30)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
     
-    start_mixing_keystrokes = ['Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter'] #['Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
-    final_keystrokes = back_keystrokes if is_defined else start_mixing_keystrokes
+    if is_defined:
+        utility.send_keystroke_to_tmux(tmux_session_name, back_keystrokes, options)
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+        return 2
     
-    utility.send_keystroke_to_tmux(tmux_session_name, final_keystrokes, options)
-    utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-    if options.debug: 
-        utility.print_tmux_screen('output.txt')
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+    transaction_zero_UTXO = utility.check_for_UTXO('output.txt')
+    
+    while transaction_zero_UTXO != 0:
+        loop_keystrokes = ['Enter', 'Down']
+        utility.send_keystroke_to_tmux(tmux_session_name, loop_keystrokes, options)
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
         
-    print("\n", is_defined, "\n")
+        transaction_zero_UTXO = utility.check_for_UTXO('output.txt')
+        
+    start_mixing_keystrokes = ['Enter', 'Tab', 'Tab', 'Tab', 'Enter']
+    utility.send_keystroke_to_tmux(tmux_session_name, start_mixing_keystrokes, options)
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+
     time.sleep(5)
     
     if is_defined == 0:
@@ -156,7 +164,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
                 print("In try")
                 with open('output.txt', 'r') as file:
                     content = file.read()
-                    if "Calculating..." not in content:
+                    if ("Calculating..." not in content) and ("Fetching" not in content):
                         print("In calculating")
                         utility.send_keystroke_to_tmux(tmux_session_name, keystrokes, options)
                         utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
