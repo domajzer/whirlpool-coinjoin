@@ -1,4 +1,5 @@
 import os
+import time
 os.environ['CRYPTOTOOLS_NETWORK'] = 'test'
 os.environ['CRYPTOTOOLS_BACKEND'] = 'rpc'
 os.environ['CRYPTOTOOLS_RPC_HOST'] = 'localhost'
@@ -62,6 +63,7 @@ def find_UTXO(xprv, account_type):
         if amount_satoshis > 300:
             tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qc0g63yf95g6kgz9dt960fdlsar0klfrnmz2qxs", amount_satoshis  - 300)
             print(f"Transaction Hash: {tx_hash}")
+            time.sleep(5)
     
 def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, amount_satoshis):
     c = Bitcoin(testnet=True)

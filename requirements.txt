@@ -1,3 +1,5 @@
 requests==2.31
 docker==6.1
 subprocess==3.12.1
+cryptos==2.0.9
+cryptotools==0.1

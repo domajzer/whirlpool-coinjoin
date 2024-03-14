@@ -19,11 +19,13 @@ SCENARIO = {
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
-        {"funds": [8000,6000,6000], "delay": 30},
-        {"funds": [10000], "delay": 180},
+        {"funds": [8000,6000,6000], "delay": 60},
+        {"funds": [7000,6000], "delay": 120},
+        {"funds": [8000], "delay": 180},
     ],
     "wallets": [
-        {"funds": [18500], "delay": 30},
+        {"funds": [9000], "delay": 60},
+        {"funds": [9000,7000], "delay": 120},
     ],
 }
 
@@ -122,7 +124,7 @@ def start_infrastructure():
 def start_client(idx, wallet, client_name):
     sleep(wallet.get("delay", 20 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
-    cmd = f"python3 /usr/src/app/automation.py -debug -mix -pool -create -name {name}"
+    cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
     #cmd = f"python3 /usr/src/app/automation.py -debug -create -name {name}"
     try:
         ip, manager_ports = driver.run(
@@ -227,7 +229,7 @@ def parse_address_and_mneumonic(client, log_file_path):
 
 def send_btc(client, btc_node):
     try:
-        if client.amount and (len(client.amount) != client.account_number) and (len(client) != 0):
+        if client.amount and (len(client.amount) != client.account_number) and (client.mnemonic is not None):
             for amount in client.amount:
                 if amount > 0:
                     try:

@@ -41,8 +41,8 @@ def send_keystroke_to_tmux(session_name, keystrokes, options):
     for keystroke in keystrokes:
         subprocess.run(f"tmux send-keys -t {session_name} {keystroke}", shell=True)
         time.sleep(3.6)
-        #print(keystroke)
         if options.debugf:
+            print(keystroke)
             capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
 def print_tmux_screen(file_path):
