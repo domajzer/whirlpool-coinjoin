@@ -69,13 +69,17 @@ def prepare_images():
 
 def start_infrastructure():
     
-    if isinstance(driver, KubernetesDriver):
+    if hasattr(driver, 'create_persistent_volume_claim'):
         driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
         volume = {"testnet-chain": "/home/bitcoin/.bitcoin/testnet3"}
-    else:
+        print("Kubernetes infrastructure is being started.")
+    elif hasattr(driver, 'network'):
         testnet3_path = os.path.abspath("/home/domajzer/coinjoin-simulator-main/btc-docker/testnet3")
         volume = {testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
-        
+        print("Docker infrastructure is being started.")
+    else:
+        raise Exception("Driver type is unrecognized. Unable to start infrastructure.")
+   
     print("Starting infrastructure")
     btc_node_ip, btc_node_ports = driver.run(
         "bitcoin-testnet-node",

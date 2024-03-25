@@ -60,7 +60,7 @@ class DockerDriver(Driver):
             tty=tty,
             command=command
         )
-        return "", ports
+        return self.get_container_ip(name), ports
 
     def stop(self, name):
         try:
