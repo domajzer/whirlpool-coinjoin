@@ -68,20 +68,31 @@ def prepare_images():
     prepare_image("whirlpool-sparrow-client")
 
 def start_infrastructure():
-        
+    
+    if hasattr(driver, 'create_persistent_volume_claim'):
+        driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
+        volume = {"testnet-chain": "/home/bitcoin/.bitcoin/testnet3"}
+        print("Kubernetes infrastructure is being started.")
+    elif hasattr(driver, 'network'):
+        testnet3_path = os.path.abspath("/home/domajzer/coinjoin-simulator-main/btc-docker/testnet3")
+        volume = {testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
+        print("Docker infrastructure is being started.")
+    else:
+        raise Exception("Driver type is unrecognized. Unable to start infrastructure.")
+   
     print("Starting infrastructure")
-    testnet3_path = os.path.abspath("/home/domajzer/coinjoin-simulator-main/btc-docker/testnet3")
     btc_node_ip, btc_node_ports = driver.run(
         "bitcoin-testnet-node",
-        "bitcoin-testnet-node",
+        f"{args.image_prefix}bitcoin-testnet-node",
         ports={18332: 18332},
         cpu=4,
         memory=4096,
-        volumes={testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
+        volumes=volume
     )
+    print(btc_node_ip)
     global node
     node = BtcNode(
-        host="localhost",
+        host=btc_node_ip,
         port=18332,
         rpc_user="TestnetUser1",
         rpc_password="Testnet123"
@@ -110,7 +121,7 @@ def start_infrastructure():
     )
     sleep(10)
     print("- started whirlpool-db-init")
-    global whirlpool_server_ip
+    
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",

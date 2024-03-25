@@ -44,12 +44,29 @@ class KubernetesDriver(Driver):
         skip_ip=False,
         cpu=0.1,
         memory=768,
+        volumes=None,
     ):
         if ports is None:
             ports = {}
         if env is None:
             env = {}
+        if volumes is None:
+            volumes = {}
 
+        volume_mounts = []
+        pod_volumes = []
+        for volume_name, mount_path in volumes.items():
+            volume_mounts.append({
+                "name": volume_name,
+                "mountPath": mount_path
+            })
+            pod_volumes.append({
+                "name": volume_name,
+                "persistentVolumeClaim": {
+                    "claimName": volume_name
+                }
+            })
+            
         pod_manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -93,8 +110,10 @@ class KubernetesDriver(Driver):
                                 "memory": f"{memory}Mi",
                             },
                         },
+                        "volumeMounts": volume_mounts,
                     }
                 ],
+                "volumes": pod_volumes,
             },
         }
 
@@ -246,6 +265,25 @@ class KubernetesDriver(Driver):
         except Exception as e:
             print(f"Failed to capture and save logs for {pod_name}: {e}")
 
+    def create_persistent_volume_claim(self, pvc_name, storage_size, storage_class="standard"):
+        pvc_manifest = {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": pvc_name
+            },
+            "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "resources": {
+                    "requests": {
+                        "storage": storage_size
+                    }
+                },
+                "storageClassName": storage_class
+            }
+        }
+        return self.client.create_namespaced_persistent_volume_claim(namespace=self.namespace, body=pvc_manifest)
+            
     def cleanup(self, image_prefix=""):
         pods = self.client.list_namespaced_pod(namespace=self._namespace)
         for pod in pods.items:
