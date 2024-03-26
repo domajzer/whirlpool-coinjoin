@@ -42,8 +42,8 @@ class KubernetesDriver(Driver):
         env=None,
         ports=None,
         skip_ip=False,
-        cpu=0.1,
-        memory=768,
+        cpu=0.5,
+        memory=1024,
         volumes=None,
     ):
         if ports is None:

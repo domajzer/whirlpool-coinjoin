@@ -70,7 +70,11 @@ def prepare_images():
 def start_infrastructure():
     
     if hasattr(driver, 'create_persistent_volume_claim'):
-        driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
+        try:
+            driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
+        except:
+            print("PVC arelady created")
+            
         volume = {"testnet-chain": "/home/bitcoin/.bitcoin/testnet3"}
         print("Kubernetes infrastructure is being started.")
     elif hasattr(driver, 'network'):
@@ -319,8 +323,6 @@ def run():
         sleep(10)
         print("CLEANUP OF IMAGES")
         driver.cleanup(args.image_prefix)
-        print('A')
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run coinjoin simulation setup")
