@@ -6,11 +6,10 @@ from time import sleep, time
 import manager.pathDerivation 
 import os
 import re
-import threading
 import datetime
 import json
 import argparse
-import multiprocessing
+from multiprocessing import Process, Event, Manager
 
 
 BTC = 100_000_000
@@ -19,9 +18,9 @@ SCENARIO = {
     "rounds": 10,  # the number of coinjoins after which the simulation stops (0 for no limit)
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
-        {"funds": [8000,6000,6000], "delay": 60},
-        {"funds": [7000,6000], "delay": 120},
-        {"funds": [8000], "delay": 180},
+        {"funds": [8000,6000,6000], "delay": 0},
+        {"funds": [7000,6000], "delay": 5},
+        {"funds": [8000], "delay": 25},
     ],
     "wallets": [
         {"funds": [9000], "delay": 60},
@@ -33,10 +32,11 @@ args = None
 driver = None
 node = None
 coordinator = None
-clients = []
 premix_check = 0
 finish_check = 0
-shutdown_event = threading.Event()
+manager = Manager()
+clients = manager.list()
+shutdown_event = Event()
 global_idx = 0
 
 def prepare_image(name):
@@ -173,29 +173,49 @@ def start_client(idx, wallet, client_name):
     return client
 
 def start_clients(wallets, name):
-    global global_idx
+    global global_idx, clients
     print("Starting clients")
-    with multiprocessing.Pool() as pool:
-        args_for_starmap = [(global_idx + idx, wallet, name) for idx, wallet in enumerate(wallets)]
-        new_clients = pool.starmap(start_client, args_for_starmap)
-        global_idx += len(wallets)
+    
+    for idx, wallet in enumerate(wallets):
+        client = start_client(global_idx + idx, wallet, name)
+        clients.append(client)  
         
-        successfully_started_clients = [client for client in new_clients if client is not None]
+        if client and wait_for_client_to_connect(client):
+            print(f"Client {client.name} started and connected successfully.")
 
-        clients.extend(new_clients)
-        print(f"Successfully started {len(successfully_started_clients)} clients.")
+        else:
+            print(f"Failed to start or connect client {client.name}.")
+    
+    print(f"Successfully started and connected {len(clients)} clients.")
 
-def capture_logs_periodically(clients, btc_node, premix_matched_containers, interval=75):
+def wait_for_client_to_connect(client, max_attempts=20, attempt_delay=12):
+    pattern = "Wallet successfully connected to bitcoin node."
+    attempts = 0
+    
+    while attempts < max_attempts:
+        try:
+            with open(f"logs/{client.name}.txt", 'r') as file:
+                if pattern in file.read():
+                    print(f"Client {client.name} successfully connected.")
+                    client.connected = True
+                    return True
+                
+        except FileNotFoundError:
+            print(f"Attempt {attempts + 1}: Log file for {client.name} not found.")
+
+        attempts += 1
+        sleep(attempt_delay)
+    
+    print(f"Failed to confirm connection for {client.name} after {max_attempts} attempts.")
+    return False
+
+def capture_logs_periodically(clients, btc_node, premix_matched_containers, interval):
     global premix_check
-    
-    #if completed_client_names == all_client_names and premix_check == 1:
-    #   finish_check = 1
-    #   shutdown_event.set()
-    
+    print("Starting log capture process...") 
     if shutdown_event.is_set():
+        print("Shutdown event set. Exiting log capture process.")
         return
-
-
+    
     completed_client_names = {client.name for client in premix_matched_containers}
 
     for client in clients:
@@ -214,10 +234,14 @@ def capture_logs_periodically(clients, btc_node, premix_matched_containers, inte
     if completed_client_names == all_client_names and premix_check == 0:
         driver.upload("whirlpool-server", "stopfile", "/app/stopfile")
         premix_check = 1
+
     
     if not shutdown_event.is_set():
-        timer = threading.Timer(interval, capture_logs_periodically, [clients, btc_node, premix_matched_containers,interval])
-        timer.start()
+        Process(target=schedule_next_capture, args=(clients, btc_node, premix_matched_containers, interval)).start()
+
+def schedule_next_capture(clients, btc_node, premix_matched_containers, interval):
+    sleep(interval)
+    capture_logs_periodically(clients, btc_node, premix_matched_containers, interval)
 
 def parse_address_and_mneumonic(client, log_file_path):
     premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
@@ -227,14 +251,14 @@ def parse_address_and_mneumonic(client, log_file_path):
     try:
         with open(log_file_path, 'r') as file:
 
-            for line in file:                           
-                if re.search(premix_UTXO_mixed_pattern, line):
-                    pattern_found = True
-                
+            for line in file:      
                 match_mnemonic = re.search(mnemonic_pattern, line)
                 if match_mnemonic:
                     mnemonic = match_mnemonic.group(1)
                     client.mnemonic = mnemonic
+                                           
+                if re.search(premix_UTXO_mixed_pattern, line):
+                    pattern_found = True
                       
     except FileNotFoundError:
         print(f"Log file {log_file_path} not found")
@@ -289,8 +313,9 @@ def run():
         prepare_images()
         start_infrastructure()
         
+        capture_process = Process(target=capture_logs_periodically, args=(clients, node, premix_matched_containers, 29))
+        capture_process.start()
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
-        capture_logs_periodically(clients, node, premix_matched_containers)
         
         while(premix_check == 0):
             print("Waiting for the liquidity mix to finish")
@@ -308,6 +333,7 @@ def run():
         
     finally:
         shutdown_event.set()
+        capture_process.join()
         print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
         driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
         driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
