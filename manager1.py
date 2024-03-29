@@ -74,11 +74,10 @@ def start_infrastructure():
             driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
         except:
             print("PVC arelady created")
-            
         volume = {"testnet-chain": "/home/bitcoin/.bitcoin/testnet3"}
         print("Kubernetes infrastructure is being started.")
     elif hasattr(driver, 'network'):
-        testnet3_path = os.path.abspath("/home/domajzer/coinjoin-simulator-main/btc-docker/testnet3")
+        testnet3_path = os.path.abspath("containers/bitcoin-testnet-node/testnet3")
         volume = {testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
         print("Docker infrastructure is being started.")
     else:

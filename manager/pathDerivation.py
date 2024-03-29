@@ -83,7 +83,3 @@ def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, 
     if attempt == max_attempts:
         print("Max attempts reached. Transaction not sent.")
         return None 
-
-#send_all_tbtc_back("joke auto multiply apology brown pipe ecology upgrade toast worth lemon middle")
-#send_all_tbtc_back("grain inside execute tortoise echo sketch interest casino sign rally also please")
-#send_all_tbtc_back("question present vague hill hunt guess assume soft innocent find sadness drum")
