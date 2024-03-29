@@ -195,11 +195,12 @@ def wait_for_client_to_connect(client, max_attempts=20, attempt_delay=12):
     while attempts < max_attempts:
         try:
             with open(f"logs/{client.name}.txt", 'r') as file:
-                if pattern in file.read():
-                    print(f"Client {client.name} successfully connected.")
-                    client.connected = True
-                    return True
-                
+                for line in file:
+                    if pattern in line:
+                        print(f"Client {client.name} successfully connected.")
+                        client.connected = True
+                        return True
+                    
         except FileNotFoundError:
             print(f"Attempt {attempts + 1}: Log file for {client.name} not found.")
 
@@ -211,7 +212,6 @@ def wait_for_client_to_connect(client, max_attempts=20, attempt_delay=12):
 
 def capture_logs_periodically(clients, btc_node, premix_matched_containers, interval):
     global premix_check
-    print("Starting log capture process...") 
     if shutdown_event.is_set():
         print("Shutdown event set. Exiting log capture process.")
         return
@@ -313,7 +313,7 @@ def run():
         prepare_images()
         start_infrastructure()
         
-        capture_process = Process(target=capture_logs_periodically, args=(clients, node, premix_matched_containers, 29))
+        capture_process = Process(target=capture_logs_periodically, args=(clients, node, premix_matched_containers, 35))
         capture_process.start()
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         
