@@ -4,4 +4,4 @@ logs_temp/*
 !logs/addresses_send.txt
 !logs/activity.csv
 !logs/mixs.csv
-
+containers/bitcoin-testnet-node/testnet3
