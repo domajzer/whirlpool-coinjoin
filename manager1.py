@@ -34,8 +34,8 @@ node = None
 coordinator = None
 premix_check = 0
 finish_check = 0
-manager1 = Manager()
-clients = manager1.list()
+manager = Manager()
+clients = manager.list()
 shutdown_event = Event()
 global_idx = 0
 
@@ -271,7 +271,7 @@ def send_btc(client, btc_node):
             for amount in client.amount:
                 if amount > 0:
                     try:
-                        client.address.append(manager1.pathDerivation.find_next_address(client.mnemonic, client.account_number))
+                        client.address.append(manager.pathDerivation.find_next_address(client.mnemonic, client.account_number))
                         transaction_info = btc_node.fund_address(client.address[client.account_number], amount)
                         
                         print("Transaction info:", transaction_info)
@@ -343,7 +343,7 @@ def run():
         
         print("COLLECTING COINS FROM WALLETS")
         for client in clients:
-            manager1.pathDerivation.send_all_tbtc_back(client.mnemonic)
+            manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
     
         sleep(10)
         print("CLEANUP OF IMAGES")
