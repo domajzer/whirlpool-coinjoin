@@ -136,7 +136,6 @@ def start_client(idx, wallet, client_name):
     sleep(wallet.get("delay", 20 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
     cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
-    #cmd = f"python3 /usr/src/app/automation.py -debug -create -name {name}"
     try:
         ip, manager_ports = driver.run(
             name,
@@ -240,7 +239,7 @@ def capture_logs_for_group(group_clients, btc_node, premix_matched_containers, i
         driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
         sleep(2)
         
-        if client.mnemonic == None or client.premix_mixed == False:
+        if client.mnemonic is None or client.premix_mixed is False:
             if parse_address_and_mnemonic(client, f"logs/{client.name}.txt"):
                 print(f"Container {client.name} has finished mixing premix UTXO.")
         
@@ -314,7 +313,7 @@ def wait_for_new_block(node):
 def check_liquidity_premix_finish(clients):
     finished = 0
     for client in clients:
-        if client.premix_mixed == True:
+        if client.premix_mixed is True:
             finished += 1
    
     if finished == len(clients):
