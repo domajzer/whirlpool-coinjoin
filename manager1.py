@@ -9,8 +9,7 @@ import re
 import datetime
 import json
 import argparse
-from multiprocessing import Process, Event, Manager
-
+from threading import Thread, Event, Timer
 
 BTC = 100_000_000
 SCENARIO = {
@@ -19,8 +18,8 @@ SCENARIO = {
     "blocks": 0,  # the number of mined blocks after which the simulation stops (0 for no limit)
     "liquidity-wallets": [
         {"funds": [8000,6000,6000], "delay": 0},
-        {"funds": [7000,6000], "delay": 5},
-        {"funds": [8000], "delay": 25},
+        {"funds": [7000,6000], "delay": 0},
+        {"funds": [8000], "delay": 0},
     ],
     "wallets": [
         {"funds": [9000], "delay": 60},
@@ -32,10 +31,8 @@ args = None
 driver = None
 node = None
 coordinator = None
-premix_check = 0
 finish_check = 0
-manager = Manager()
-clients = manager.list()
+clients = []
 shutdown_event = Event()
 global_idx = 0
 
@@ -175,29 +172,55 @@ def start_client(idx, wallet, client_name):
 def start_clients(wallets, name):
     global global_idx, clients
     print("Starting clients")
+    batch_size = 3 
     
-    for idx, wallet in enumerate(wallets):
-        client = start_client(global_idx + idx, wallet, name)
-        clients.append(client)  
-        
-        if client and wait_for_client_to_connect(client):
-            print(f"Client {client.name} started and connected successfully.")
+    for i in range(0, len(wallets), batch_size):
+        current_batch_clients = []
+        current_batch = wallets[i:i+batch_size]
 
+        for idx, wallet in enumerate(current_batch):
+            client_index = global_idx + idx 
+            client = start_client(client_index, wallet, name)
+            
+            if client:
+                current_batch_clients.append(client)
+                clients.append(client)
+                print(f"Started client {client.name}.")
+                
+            else:
+                print(f"Failed to start client for wallet index {client_index}.")
+
+        all_connected = True
+        for client in current_batch_clients:
+            if not wait_for_client_to_connect(client):
+                all_connected = False
+                print(f"Client {client.name} failed to connect.")
+                break
+
+        if all_connected:
+            print("All clients in the current batch connected successfully. Proceeding with the next batch.")
+            
         else:
-            print(f"Failed to start or connect client {client.name}.")
-    
-    print(f"Successfully started and connected {len(clients)} clients.")
+            print("Not all clients in the current batch connected successfully. Stopping.")
+            break 
 
-def wait_for_client_to_connect(client, max_attempts=20, attempt_delay=12):
+        global_idx += len(current_batch)
+
+    print(f"Successfully started and processed {len(clients)} clients out of {len(wallets)}.")
+
+def wait_for_client_to_connect(client, max_attempts=30, attempt_delay=10):
     pattern = "Wallet successfully connected to bitcoin node."
     attempts = 0
     
     while attempts < max_attempts:
         try:
+            driver.capture_and_save_logs(client,f"logs/{client.name}.txt")
+            sleep(2)
+            
             with open(f"logs/{client.name}.txt", 'r') as file:
                 for line in file:
                     if pattern in line:
-                        print(f"Client {client.name} successfully connected.")
+                        print(f"Client {client.name} successfully connected. {line}")
                         client.connected = True
                         return True
                     
@@ -210,61 +233,48 @@ def wait_for_client_to_connect(client, max_attempts=20, attempt_delay=12):
     print(f"Failed to confirm connection for {client.name} after {max_attempts} attempts.")
     return False
 
-def capture_logs_periodically(clients, btc_node, premix_matched_containers, interval):
-    global premix_check
-    if shutdown_event.is_set():
-        print("Shutdown event set. Exiting log capture process.")
-        return
-    
-    completed_client_names = {client.name for client in premix_matched_containers}
+def capture_logs_for_group(group_clients, btc_node, premix_matched_containers, interval=45):
+    print(f"Collecting logs for {group_clients}")
 
-    for client in clients:
-        sleep(2)
+    for client in group_clients:
         driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
+        sleep(2)
         
-        if parse_address_and_mneumonic(client, f"logs/{client.name}.txt") and (premix_check == 0):
-            premix_matched_containers.add(client)
-            completed_client_names.add(client.name)
-            print(f"Container {client.name} has finished mixing premix UTXO.")
-            
+        if client.mnemonic == None or client.premix_mixed == False:
+            if parse_address_and_mnemonic(client, f"logs/{client.name}.txt"):
+                print(f"Container {client.name} has finished mixing premix UTXO.")
+        
         send_btc(client, btc_node)
-
-    all_client_names = {client.name for client in clients}
             
-    if completed_client_names == all_client_names and premix_check == 0:
-        driver.upload("whirlpool-server", "stopfile", "/app/stopfile")
-        premix_check = 1
-
-    
     if not shutdown_event.is_set():
-        Process(target=schedule_next_capture, args=(clients, btc_node, premix_matched_containers, interval)).start()
+        Timer(interval, capture_logs_for_group, args=(group_clients, btc_node, premix_matched_containers, interval)).start()
 
-def schedule_next_capture(clients, btc_node, premix_matched_containers, interval):
-    sleep(interval)
-    capture_logs_periodically(clients, btc_node, premix_matched_containers, interval)
-
-def parse_address_and_mneumonic(client, log_file_path):
-    premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
-    mnemonic_pattern = r'Seed words: ((?:[a-z]+ ){11}[a-z]+)'
-    pattern_found = False
+def start_log_capture_in_threads(clients, btc_node, premix_matched_containers, interval=45, group_size=20):
+    client_groups = [clients[i:i + group_size] for i in range(0, len(clients), group_size)]
     
+    for group in client_groups:
+        Thread(target=capture_logs_for_group, args=(group, btc_node, premix_matched_containers, interval)).start()
+    
+def parse_address_and_mnemonic(client, log_file_path):
+    premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
+    mnemonic_pattern = r'Seed words: ((?:[a-z]+ ){11}[a-z]+)'     
     try:
         with open(log_file_path, 'r') as file:
 
             for line in file:      
                 match_mnemonic = re.search(mnemonic_pattern, line)
+                
                 if match_mnemonic:
-                    mnemonic = match_mnemonic.group(1)
-                    client.mnemonic = mnemonic
-                                           
+                    client.mnemonic = match_mnemonic.group(1)
+                                        
                 if re.search(premix_UTXO_mixed_pattern, line):
-                    pattern_found = True
-                      
+                    client.premix_mixed = True
+                    
     except FileNotFoundError:
         print(f"Log file {log_file_path} not found")
     
-    return pattern_found
-
+    return client.premix_mixed
+    
 def send_btc(client, btc_node):
     try:
         if client.amount and (len(client.amount) != client.account_number) and (client.mnemonic is not None):
@@ -300,7 +310,18 @@ def wait_for_new_block(node):
         
         print("Waiting for a new block...")
         sleep(30)
-        
+     
+def check_liquidity_premix_finish(clients):
+    finished = 0
+    for client in clients:
+        if client.premix_mixed == True:
+            finished += 1
+   
+    if finished == len(clients):
+        return True
+    
+    return False
+    
 def run():
     if args.scenario:
         with open(args.scenario) as f:
@@ -313,11 +334,10 @@ def run():
         prepare_images()
         start_infrastructure()
         
-        capture_process = Process(target=capture_logs_periodically, args=(clients, node, premix_matched_containers, 35))
-        capture_process.start()
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
+        start_log_capture_in_threads(clients, node, premix_matched_containers)
         
-        while(premix_check == 0):
+        while not check_liquidity_premix_finish(clients):
             print("Waiting for the liquidity mix to finish")
             sleep(60)
             
@@ -333,7 +353,6 @@ def run():
         
     finally:
         shutdown_event.set()
-        capture_process.join()
         print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
         driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
         driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
