@@ -231,28 +231,6 @@ def wait_for_client_to_connect(client, max_attempts=30, attempt_delay=10):
     
     print(f"Failed to confirm connection for {client.name} after {max_attempts} attempts.")
     return False
-
-def capture_logs_for_group(group_clients, btc_node, premix_matched_containers, interval=45):
-    print(f"Collecting logs for {group_clients}")
-
-    for client in group_clients:
-        driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
-        sleep(2)
-        
-        if client.mnemonic is None or client.premix_mixed is False:
-            if parse_address_and_mnemonic(client, f"logs/{client.name}.txt"):
-                print(f"Container {client.name} has finished mixing premix UTXO.")
-        
-        send_btc(client, btc_node)
-            
-    if not shutdown_event.is_set():
-        Timer(interval, capture_logs_for_group, args=(group_clients, btc_node, premix_matched_containers, interval)).start()
-
-def start_log_capture_in_threads(clients, btc_node, premix_matched_containers, interval=45, group_size=20):
-    client_groups = [clients[i:i + group_size] for i in range(0, len(clients), group_size)]
-    
-    for group in client_groups:
-        Thread(target=capture_logs_for_group, args=(group, btc_node, premix_matched_containers, interval)).start()
     
 def parse_address_and_mnemonic(client, log_file_path):
     premix_UTXO_mixed_pattern = r'All [0-9]{1,4} UTXOs have been mixed'
@@ -310,6 +288,38 @@ def wait_for_new_block(node):
         print("Waiting for a new block...")
         sleep(30)
      
+def capture_logs_for_group(group_clients, btc_node, interval=45):
+    print(f"Collecting logs for {group_clients}")
+
+    while not shutdown_event.is_set():
+        for client in group_clients:
+            driver.capture_and_save_logs(client, f"logs/{client.name}.txt")
+            sleep(2)
+            
+            if client.mnemonic is None or client.premix_mixed is False:
+                if parse_address_and_mnemonic(client, f"logs/{client.name}.txt"):
+                    print(f"Container {client.name} has finished mixing premix UTXO.")
+            
+            send_btc(client, btc_node)
+        
+        sleep(interval)
+
+def start_log_capture_in_threads(clients, btc_node, interval=45, group_size=20):
+    threads = []
+    client_groups = [clients[i:i + group_size] for i in range(0, len(clients), group_size)]
+    
+    for group in client_groups:
+        t = Thread(target=capture_logs_for_group, args=(group, btc_node, interval))
+        threads.append(t)
+        t.start()
+
+    return threads
+
+def stop_log_capture_threads(threads):
+    shutdown_event.set()
+    for t in threads:
+        t.join()
+        
 def check_liquidity_premix_finish(clients):
     finished = 0
     for client in clients:
@@ -320,7 +330,7 @@ def check_liquidity_premix_finish(clients):
         return True
     
     return False
-    
+
 def run():
     if args.scenario:
         with open(args.scenario) as f:
@@ -328,13 +338,12 @@ def run():
 
     try:
         print(f"=== Scenario {SCENARIO['name']} ===")
-        premix_matched_containers = set()
         
         prepare_images()
         start_infrastructure()
         
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
-        start_log_capture_in_threads(clients, node, premix_matched_containers)
+        threads = start_log_capture_in_threads(clients, node)
         
         while not check_liquidity_premix_finish(clients):
             print("Waiting for the liquidity mix to finish")
@@ -342,6 +351,11 @@ def run():
             
         print("Changing coordinator config")
         start_clients(SCENARIO["wallets"], "wallets")
+        
+        stop_log_capture_threads(threads)
+        shutdown_event.clear()
+        sleep(30)
+        new_threads = start_log_capture_in_threads(clients, node)
             
         input("Press Enter to stop all other running containers...\n")
         print("ALL WALLETS HAVE FINISHED MIXING.....")
@@ -351,6 +365,7 @@ def run():
         print("KeyboardInterrupt received")
         
     finally:
+        stop_log_capture_threads(new_threads)
         shutdown_event.set()
         print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
         driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
