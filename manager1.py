@@ -6,7 +6,6 @@ from time import sleep, time
 import manager.pathDerivation 
 import os
 import re
-import datetime
 import json
 import argparse
 from threading import Thread, Event, Timer
