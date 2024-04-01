@@ -207,7 +207,7 @@ def start_clients(wallets, name):
 
     print(f"Successfully started and processed {len(clients)} clients out of {len(wallets)}.")
 
-def wait_for_client_to_connect(client, max_attempts=30, attempt_delay=10):
+def wait_for_client_to_connect(client, max_attempts=85, attempt_delay=10):
     pattern = "Wallet successfully connected to bitcoin node."
     attempts = 0
     
@@ -367,16 +367,21 @@ def run():
     finally:
         stop_log_capture_threads(new_threads)
         shutdown_event.set()
+        
         print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
         driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
         driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
+        
+        print("STOPPING COORDINATOR")
+        driver.stop("whirlpool-server")
         
         print("WAITING FOR NEW BLOCK TO BE MINED")
         wait_for_new_block(node)
         
         print("COLLECTING COINS FROM WALLETS")
         for client in clients:
-            manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
+            if client.menmonic is not None:
+                manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
     
         sleep(10)
         print("CLEANUP OF IMAGES")

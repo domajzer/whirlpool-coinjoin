@@ -215,29 +215,29 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
     if (start_UTXO == 0): #If there was a problem with loading UTXO
         utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
         
-        time.sleep(45)
+        time.sleep(30)
         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
-        start_UTXO = utility.check_for_UTXO('output.txt')
+        refresh_UTXO = utility.check_for_UTXO('output.txt')
         
-        while (start_UTXO == 0):  
+        while (refresh_UTXO == 0):  
             utility.send_keystroke_to_tmux(tmux_session_name, ['Enter'], options)
             utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                 
-            start_UTXO = utility.check_for_UTXO('output.txt')
+            refresh_UTXO = utility.check_for_UTXO('output.txt')
+            
+        utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
             
     else: #If there was no problem loading UTXO
         utility.send_keystroke_to_tmux(tmux_session_name, return_from_transac_keystrokes, options)
         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
-
-    utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
-    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
-
         
     utility.send_keystroke_to_tmux(tmux_session_name, ['U','Enter'], options)
     utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
     try:
+        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
         with open('output.txt', 'r') as file:
             content = file.read()
             if "Stop Mixing" not in content:
@@ -255,9 +255,6 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         
     except Exception as e:
         print(f"An error occurred: {e}")               
-    
-    start_UTXO = utility.check_for_UTXO('output.txt')
-    print(f"UTXO IN  WALLET {start_UTXO}")
     
     try:
         with open('output.txt', 'r') as file:
@@ -285,29 +282,35 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         
     except Exception as e:
         print(f"An error occurred: {e}")
-    
+        
+    late_UTXO = utility.check_for_UTXO('output.txt')
+    print(f"UTXO IN  WALLET {late_UTXO}")
     utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
     if options.debug: 
         utility.print_tmux_screen('output.txt')    
                 
-    try:
-        now_UTXO = start_UTXO
-        while(now_UTXO != 0):
-            utility.capture_tmux_output('sparrow_wallet', '0', 'output.txt')
-            if options.debug: 
-                utility.print_tmux_screen('output.txt')
-                
-            now_UTXO = utility.check_for_UTXO('output.txt')
-            print(f"Remaining UTXO {now_UTXO}")
-            time.sleep(25)
-        
-        print(f"All {start_UTXO} UTXOs have been mixed")
-          
-    except FileNotFoundError:
-        print(f"File not found: {'output.txt'}")
-        
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    if pp == 1:
+        try:
+            now_UTXO = start_UTXO
+            while(now_UTXO != 0):
+                utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+                now_UTXO = utility.check_for_UTXO('output.txt')
+                print(f"Remaining UTXO {now_UTXO}")
+                time.sleep(25)
+            
+            print(f"All {start_UTXO} UTXOs have been mixed")
+            
+        except FileNotFoundError:
+            print(f"File not found: {'output.txt'}")
+            
+        except Exception as e:
+            print(f"An error occurred: {e}")
+    else:
+        while True:
+                utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
+                now_UTXO = utility.check_for_UTXO('output.txt')
+                print(f"Remaining UTXO {now_UTXO}")
+                time.sleep(60)
     
     #return to start after premix
     stop_start_mixing_keystrokes = ['Tab', 'Tab','Enter', 'Tab', 'Tab', 'Enter'] #['Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
@@ -387,6 +390,10 @@ def get_adress(tmux_session_name, options):
 
 def main():
     options = parse_arguments()
+    
+    if options.debugf:
+        options.debug = True
+        
     tmux_session_name = "sparrow_wallet"
     sparrow_command = "./Sparrow/bin/Sparrow --network testnet"
     utility.system_info(options)
