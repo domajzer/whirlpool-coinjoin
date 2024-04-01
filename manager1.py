@@ -349,12 +349,16 @@ def run():
             print("Waiting for the liquidity mix to finish")
             sleep(60)
             
-        print("Changing coordinator config")
+        print("Changing coordinator config")    
+        driver.upload("whirlpool-server", "stopfile", "/app/stopfile")
+        
         start_clients(SCENARIO["wallets"], "wallets")
         
         stop_log_capture_threads(threads)
         shutdown_event.clear()
+        
         sleep(30)
+        
         new_threads = start_log_capture_in_threads(clients, node)
             
         input("Press Enter to stop all other running containers...\n")
@@ -367,7 +371,6 @@ def run():
     finally:
         stop_log_capture_threads(new_threads)
         shutdown_event.set()
-        
         print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
         driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
         driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
@@ -380,7 +383,7 @@ def run():
         
         print("COLLECTING COINS FROM WALLETS")
         for client in clients:
-            if client.menmonic is not None:
+            if client.mnemonic is not None:
                 manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
     
         sleep(10)
