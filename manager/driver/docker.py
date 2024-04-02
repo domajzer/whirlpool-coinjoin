@@ -59,7 +59,7 @@ class DockerDriver(Driver):
             volumes=volumes or {},
             tty=tty,
             command=command,
-            cpu=cpu
+            nano_cpus=int(cpu * 1e9)
         )
         return self.get_container_ip(name), ports
 
