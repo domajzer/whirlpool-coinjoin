@@ -71,7 +71,7 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
                     return 0
 
                 elif "Unconfirmed" in content:
-                    for _ in range(60):
+                    for _ in range(100):
                         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
                         with open(file_path, 'r') as file:
@@ -246,6 +246,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
             content = file.read()
             if "Stop Mixing" not in content:
                 for _ in range(20):
+                    print("Checking if mixing started")
                     utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                         
                     with open('output.txt', 'r') as file:
@@ -255,7 +256,10 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
                         sleep(5)
                         
                     else:
+                        counter = 1
                         break
+            else:
+                counter = 1 
                     
     except FileNotFoundError:
         print(f"File not found: {'output.txt'}")
