@@ -27,7 +27,7 @@
   "useLegacyCoreWallet": false,
   "useProxy": false,
   "autoSwitchProxy": true,
-  "maxServerTimeout": 34,
+  "maxServerTimeout": 45,
   "maxPageSize": 100,
   "usePayNym": false,
   "sameAppMixing": false,

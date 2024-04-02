@@ -54,7 +54,6 @@ def prepare_image(name):
         driver.build(name, f"./containers/{name}")
         print(f"- image built {prefixed_name}")
 
-
 def prepare_images():
     print("Preparing images")
     prepare_image("bitcoin-testnet-node")

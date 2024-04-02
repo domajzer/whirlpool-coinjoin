@@ -205,13 +205,13 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         sleep(30)
         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
-        refresh_UTXO = utility.check_for_UTXO('output.txt')
+        start_UTXO = utility.check_for_UTXO('output.txt')
         
-        while (refresh_UTXO == 0):  
+        while (start_UTXO == 0):  
             utility.send_keystroke_to_tmux(tmux_session_name, ['Enter'], options)
             utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                 
-            refresh_UTXO = utility.check_for_UTXO('output.txt')
+            start_UTXO = utility.check_for_UTXO('output.txt')
             
         utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
