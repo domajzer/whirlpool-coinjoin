@@ -2,6 +2,4 @@ sparrow-1.7.10-x86_64.tar.gz
 logs/*
 logs_temp/*
 !logs/addresses_send.txt
-!logs/activity.csv
-!logs/mixs.csv
 containers/bitcoin-testnet-node/testnet3
