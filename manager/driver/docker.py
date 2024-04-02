@@ -41,7 +41,7 @@ class DockerDriver(Driver):
         env=None,
         ports=None,
         skip_ip=False,
-        cpu=0.6,
+        cpu=1,
         memory=800,
         volumes=None,
         tty=False,
@@ -58,7 +58,8 @@ class DockerDriver(Driver):
             environment=env or {},
             volumes=volumes or {},
             tty=tty,
-            command=command
+            command=command,
+            cpu=cpu
         )
         return self.get_container_ip(name), ports
 
