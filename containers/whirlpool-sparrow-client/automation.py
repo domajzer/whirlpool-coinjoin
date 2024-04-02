@@ -61,6 +61,7 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
     refresh_mixing_keystrokes = ['Tab', 'Tab', 'Enter', 'Tab'] 
 
     while counter > 0:
+        sleep(10)
         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
         try:
             with open(file_path, 'r') as file:
@@ -107,6 +108,8 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
         except Exception as e:
             print(f"An error occurred: {e}")
             return 2
+    
+    return 1
         
 def add_to_pool(tmux_session_name, options, file_path, mix_type):
     #start_mixing_keystrokes = ['W', 'Enter', 'Enter', 'Enter', 'U', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Tab', 'Enter', 'Tab', 'Enter', 'Enter', 'Tab', 'Enter', 'Tab', 'Tab', 'Enter']
@@ -124,14 +127,13 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
 
     sleep(1.5)
     
-    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 30)
+    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 210)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
-    
-    if is_defined:
-        utility.send_keystroke_to_tmux(tmux_session_name, back_keystrokes, options)
-        utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
         return 2
+    
+    utility.send_keystroke_to_tmux(tmux_session_name, back_keystrokes, options)
+    utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
     
     utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
     transaction_zero_UTXO = utility.check_for_UTXO('output.txt')
@@ -437,7 +439,9 @@ def main():
             initialize_wallet(tmux_session_name, options)
 
         if options.pool:
-            add_to_pool(tmux_session_name, options, 'output.txt', 1)
+            ret_val = add_to_pool(tmux_session_name, options, 'output.txt', 1)
+            if ret_val == 2:
+                return 
             sleep(6)
             
         # Start premix

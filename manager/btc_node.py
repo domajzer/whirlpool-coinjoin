@@ -23,7 +23,7 @@ class BtcNode:
                 data=json.dumps(request),
                 auth=(self.rpc_user, self.rpc_password),
                 proxies=dict(http=self.proxy),
-                timeout=45,
+                timeout=60,
             )
         except requests.exceptions.Timeout:
             return "timeout"
