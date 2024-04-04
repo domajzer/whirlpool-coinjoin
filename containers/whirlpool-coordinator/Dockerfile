@@ -11,4 +11,7 @@ COPY activity.csv /app/logs/activity.csv
 COPY script.sh .
 RUN chmod +x script.sh 
 
-CMD ["./script.sh"]
+RUN chown -R 1000:1000 /app
+USER 1000:1000
+
+ENTRYPOINT ["./script.sh"]

@@ -100,5 +100,6 @@ class BtcNode:
                     break
                 
             except Exception as e:
+                print (self.host, self.port)
                 print(f"Error checking node synchronization status: {e}")
             sleep(10)

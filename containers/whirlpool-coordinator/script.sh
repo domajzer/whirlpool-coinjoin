@@ -8,7 +8,7 @@ NEW_LIQUIDITY_MIN=3      # Update this value
 NEW_ANONYMITY_SET=5      # Update this value
 
 echo "Starting Java application..."
-java -jar /app/whirlpool-server/target/whirlpool-server-0.23.36.jar --spring.config.location=/app/whirlpool-server/config.properties &
+java -jar /app/whirlpool-server/target/whirlpool-server-1.0.1-SNAPSHOT.jar --spring.config.location=/app/whirlpool-server/config.properties &
 JAVA_PID=$!
 
 echo "Monitoring for stop signal..."
@@ -35,4 +35,4 @@ sed -i "s/\(server\.pools\[3\]\.anonymity-set = \).*/\1$NEW_ANONYMITY_SET/" "$CO
 echo "Configuration updated successfully."
 sleep 2
 
-java -jar /app/whirlpool-server/target/whirlpool-server-0.23.36.jar --spring.config.location=/app/whirlpool-server/config.properties
+java -jar /app/whirlpool-server/target/whirlpool-server-1.0.1-SNAPSHOT.jar --spring.config.location=/app/whirlpool-server/config.properties

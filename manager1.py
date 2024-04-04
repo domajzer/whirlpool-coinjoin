@@ -83,7 +83,7 @@ def start_infrastructure():
         "bitcoin-testnet-node",
         f"{args.image_prefix}bitcoin-testnet-node",
         ports={18332: 18332},
-        cpu=4,
+        cpu=8,
         memory=4096,
         volumes=volume
     )
@@ -91,9 +91,10 @@ def start_infrastructure():
     global node
     node = BtcNode(
         host=btc_node_ip,
-        port=18332,
+        port=18332 if args.proxy else btc_node_ports[18332],
         rpc_user="TestnetUser1",
-        rpc_password="Testnet123"
+        rpc_password="Testnet123",
+        internal_ip=btc_node_ip
     )
     print("- started btc-node")
 

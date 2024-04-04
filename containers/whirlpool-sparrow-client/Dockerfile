@@ -43,3 +43,10 @@ COPY config /root/.sparrow/testnet
 
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser appuser
+
+RUN chown -R appuser:appuser /usr/src/app /root/.sparrow
+
+USER 1000:1000
