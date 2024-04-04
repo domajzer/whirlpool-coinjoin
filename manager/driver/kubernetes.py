@@ -289,7 +289,7 @@ class KubernetesDriver(Driver):
         for pod in pods.items:
             if any(
                 x in pod.metadata.name
-                for x in ("btc-node", "wasabi-backend", "wasabi-client")
+                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "whirlpool-sparrow-client")
             ):
                 self.client.delete_namespaced_pod(
                     name=pod.metadata.name, namespace=self._namespace
@@ -298,7 +298,7 @@ class KubernetesDriver(Driver):
         for service in services.items:
             if any(
                 x in service.metadata.name
-                for x in ("btc-node", "wasabi-backend", "wasabi-client")
+                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "whirlpool-sparrow-client")
             ):
                 self.client.delete_namespaced_service(
                     name=service.metadata.name, namespace=self._namespace

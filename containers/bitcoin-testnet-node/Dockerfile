@@ -1,5 +1,6 @@
-FROM ruimarinho/bitcoin-core:latest
-COPY bitcoin.conf /home/bitcoin/.bitcoin/bitcoin.conf
+FROM ruimarinho/bitcoin-core:23-alpine
 EXPOSE 18332
-CMD ["bitcoind", "-testnet"]
-
+COPY --chown=100:101 bitcoin.conf /home/bitcoin/.bitcoin/bitcoin.conf
+USER 100:101
+WORKDIR /home/bitcoin
+ENTRYPOINT ["bitcoind", "-testnet"]
