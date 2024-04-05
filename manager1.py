@@ -104,17 +104,12 @@ def start_infrastructure():
         ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1,
-        memory=2048,
-        #volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}  
-        #TODO need to fix network, when mounting old DB
-        #java.sql.SQLException: null,  message from server: "Host '172.18.0.4' is not allowed to connect to this MySQL server"
+        memory=2048
     )
     node.wait_ready()
     print(node.load_wallet())
     print("- started whirlpool-db")
-    sleep(20)
-    init_db(whirlpool_db_ip if args.proxy else args.control_ip, 3306 if args.proxy else whirlpool_db_ports[3306])
-    sleep(5)
+    sleep(25)
     
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
