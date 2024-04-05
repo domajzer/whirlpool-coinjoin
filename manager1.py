@@ -59,7 +59,6 @@ def prepare_images():
     print("Preparing images")
     prepare_image("bitcoin-testnet-node")
     prepare_image("whirlpool-db")
-    prepare_image("whirlpool-db-init")
     prepare_image("whirlpool-server")
     prepare_image("whirlpool-sparrow-client")
 
