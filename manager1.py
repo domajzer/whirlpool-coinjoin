@@ -2,6 +2,7 @@
 
 from manager.btc_node import BtcNode
 from manager.sparrow_client import SparrowClient
+from manager.db import init_db
 from time import sleep, time
 import manager.pathDerivation 
 import os
@@ -112,14 +113,9 @@ def start_infrastructure():
     node.wait_ready()
     print(node.load_wallet())
     print("- started whirlpool-db")
-    sleep(25)
-
-    whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
-        "whirlpool-db-init",
-        f"{args.image_prefix}whirlpool-db-init"
-    )
-    sleep(10)
-    print("- started whirlpool-db-init")
+    sleep(20)
+    init_db(whirlpool_db_ip if args.proxy else args.control_ip, 3306 if args.proxy else whirlpool_db_ports[3306])
+    sleep(5)
     
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
