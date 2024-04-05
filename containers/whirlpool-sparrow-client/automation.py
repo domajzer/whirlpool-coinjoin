@@ -126,7 +126,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
 
     sleep(1.5)
     
-    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 210)
+    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 1000)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
         return 2

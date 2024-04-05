@@ -90,7 +90,7 @@ def start_infrastructure():
     print(btc_node_ip)
     global node
     node = BtcNode(
-        host=btc_node_ip,
+        host=btc_node_ip if args.proxy else args.control_ip,
         port=18332 if args.proxy else btc_node_ports[18332],
         rpc_user="TestnetUser1",
         rpc_password="Testnet123",
