@@ -7,20 +7,25 @@ NEW_MUST_MIX_MIN=1       # Update this value
 NEW_LIQUIDITY_MIN=3      # Update this value
 NEW_ANONYMITY_SET=5      # Update this value
 
+echo "Monitoring for stop signal..."
+while [ ! -f "$CONFIG_FILE" ]; do
+  sleep 5
+done
+
 echo "Starting Java application..."
 java -jar /app/whirlpool-server/target/whirlpool-server-0.23.36.jar --spring.config.location=/app/whirlpool-server/config.properties &
 JAVA_PID=$!
 
 echo "Monitoring for stop signal..."
 while [ ! -f /app/stopfile ]; do
-  sleep 2
+  sleep 3
 done
 
 echo "Stop signal received. Stopping Java application..."
 kill $JAVA_PID
 rm -f /app/stopfile
 
-sleep 2
+sleep 3
 echo "Executing additional script..."
 
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -33,6 +38,6 @@ sed -i "s/\(server\.pools\[3\]\.liquidity-min = \).*/\1$NEW_LIQUIDITY_MIN/" "$CO
 sed -i "s/\(server\.pools\[3\]\.anonymity-set = \).*/\1$NEW_ANONYMITY_SET/" "$CONFIG_FILE"
 
 echo "Configuration updated successfully."
-sleep 2
+sleep 3
 
 java -jar /app/whirlpool-server/target/whirlpool-server-0.23.36.jar --spring.config.location=/app/whirlpool-server/config.properties

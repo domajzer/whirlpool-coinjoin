@@ -44,4 +44,3 @@ COPY automation.py .
 COPY utility.py .
 
 RUN mkdir -p .sparrow/testnet/wallets
-COPY config .sparrow/testnet

@@ -397,7 +397,7 @@ def main():
     
     if options.debugf:
         options.debug = True
-        
+    sleep(10)
     tmux_session_name = "sparrow_wallet"
     sparrow_command = "./Sparrow/bin/Sparrow --network testnet --dir .sparrow"
     utility.system_info(options)

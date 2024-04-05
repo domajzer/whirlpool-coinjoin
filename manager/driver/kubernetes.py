@@ -45,6 +45,8 @@ class KubernetesDriver(Driver):
         cpu=0.5,
         memory=1024,
         volumes=None,
+        tty=False,
+        command=None
     ):
         if ports is None:
             ports = {}
@@ -111,12 +113,13 @@ class KubernetesDriver(Driver):
                             },
                         },
                         "volumeMounts": volume_mounts,
+                        "tty": tty,
+                        "command": command,
                     }
                 ],
                 "volumes": pod_volumes,
             },
         }
-
         resp = self.client.create_namespaced_pod(
             body=pod_manifest, namespace=self.namespace
         )
@@ -254,6 +257,71 @@ class KubernetesDriver(Driver):
         except client.exceptions.ApiException as e:
             print(f"An error occurred: {e}")
             return None 
+        
+    def setup_socat_in_container(self, pod_name, coordinator_ip, coordinator_port):
+        cmd = ["/bin/sh", "-c", f"socat TCP-LISTEN:8080,fork TCP:{coordinator_ip}:{coordinator_port}"]
+        try:
+            resp = stream(
+                self.client.connect_get_namespaced_pod_exec,
+                name=pod_name,
+                namespace=self.namespace,
+                command=cmd,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _preload_content=False,
+            )
+
+            stdout = ""
+            while resp.is_open():
+                resp.update(timeout=1)
+                if resp.peek_stdout():
+                    stdout += resp.read_stdout()
+                if resp.peek_stderr():
+                    print(f"STDERR: {resp.read_stderr()}")
+                    
+            resp.close()
+            print(f"Attempted to start socat in {pod_name}.")
+
+        except Exception as e:
+            print(f"Exception setting up socat in pod {pod_name}: {e}")
+        
+        return self.check_socat_running(pod_name)
+        
+    def check_socat_running(self, pod_name):
+        check_cmd = ["/bin/sh", "-c", "ps aux | grep socat | grep -v grep"]
+        try:
+            resp = stream(self.client.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace=self.namespace,
+                        command=check_cmd,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False,
+                        _preload_content=False)
+
+            stdout = ""
+            while resp.is_open():
+                resp.update(timeout=1)
+                if resp.peek_stdout():
+                    stdout += resp.read_stdout()
+                if resp.peek_stderr():
+                    print(f"STDERR: {resp.read_stderr()}")
+
+            resp.close()
+            
+            if "TCP-LISTEN" in stdout:
+                print(f"Socat is running in {pod_name}.")
+                return True
+            else:
+                print(f"Failed to start socat in {pod_name}.")
+                return False
+
+        except Exception as e:
+            print(f"Exception while checking if socat is running in pod {pod_name}: {e}")
+            return False
         
     def capture_and_save_logs(self, pod_name, log_file_path):
         try:

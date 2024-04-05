@@ -2,8 +2,8 @@
 
 from manager.btc_node import BtcNode
 from manager.sparrow_client import SparrowClient
-from manager.db import init_db
 from time import sleep, time
+from manager import utils
 import manager.pathDerivation 
 import os
 import re
@@ -64,20 +64,18 @@ def prepare_images():
 
 def start_infrastructure():
     
-    if hasattr(driver, 'create_persistent_volume_claim'):
+    if args.driver == "kubernetes":
         try:
             driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
         except:
             print("PVC arelady created")
         volume = {"testnet-chain": "/home/bitcoin/.bitcoin/testnet3"}
         print("Kubernetes infrastructure is being started.")
-    elif hasattr(driver, 'network'):
+    elif args.driver == "docker":
         testnet3_path = os.path.abspath("containers/bitcoin-testnet-node/testnet3")
         volume = {testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
         print("Docker infrastructure is being started.")
-    else:
-        raise Exception("Driver type is unrecognized. Unable to start infrastructure.")
-   
+
     print("Starting infrastructure")
     btc_node_ip, btc_node_ports = driver.run(
         "bitcoin-testnet-node",
@@ -110,7 +108,7 @@ def start_infrastructure():
     print(node.load_wallet())
     print("- started whirlpool-db")
     sleep(25)
-    
+    global whirlpool_server_ports
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
@@ -118,10 +116,22 @@ def start_infrastructure():
         cpu=2.0,
         memory=2048
     )
+    if args.driver == "kubernetes":
+        custom_properties_path = utils.update_coordinator_config(
+                                    "containers/whirlpool-coordinator/custom.properties",
+                                    whirlpool_db_ip,
+                                    whirlpool_db_ports,
+                                    btc_node_ip,
+                                    btc_node_ports)
+        
+    elif args.driver == "docker":
+        custom_properties_path = "containers/whirlpool-coordinator/custom.properties"
+    
+    driver.upload("whirlpool-server", custom_properties_path, "/app/whirlpool-server/config.properties")
     sleep(30)
     print("- started coordinator")
 
-def start_client(idx, wallet, client_name):
+def start_client(idx, wallet, client_name, config_path):
     sleep(wallet.get("delay", 20 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
     cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
@@ -146,8 +156,8 @@ def start_client(idx, wallet, client_name):
             amount=funds_btc
         )
         sleep(5)
-        
-        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server")):
+        driver.upload(name , config_path, "/usr/src/app/.sparrow/testnet/config")
+        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server"), 8080 if args.driver == "docker" else whirlpool_server_ports[8080]):
             print(f"Failed to setup socat for {name}")
             return None
         
@@ -161,6 +171,11 @@ def start_clients(wallets, name):
     global global_idx, clients
     print("Starting clients")
     batch_size = 3 
+    if args.driver == "kubernetes":
+        config_path = utils.update_client_config("containers/whirlpool-sparrow-client/config", node.internal_ip, node.port)
+            
+    elif args.driver == "docker":
+        config_path = "containers/whirlpool-sparrow-client/config"
     
     for i in range(0, len(wallets), batch_size):
         current_batch_clients = []
@@ -168,7 +183,7 @@ def start_clients(wallets, name):
 
         for idx, wallet in enumerate(current_batch):
             client_index = global_idx + idx 
-            client = start_client(client_index, wallet, name)
+            client = start_client(client_index, wallet, name, config_path)
             
             if client:
                 current_batch_clients.append(client)

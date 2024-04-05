@@ -6,7 +6,6 @@ RUN git checkout tags/0.23.36
 
 RUN mvn clean install -Dmaven.test.skip=true
 
-COPY custom.properties /app/whirlpool-server/config.properties
 COPY mixs.csv /app/logs/mixs.csv
 COPY activity.csv /app/logs/activity.csv
 COPY script.sh .
