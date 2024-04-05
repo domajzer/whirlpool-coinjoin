@@ -1,6 +1,6 @@
 {
   "mode": "ONLINE",
-  "loadRecentWallets": false,
+  "loadRecentWallets": true,
   "validateDerivationPaths": true,
   "groupByAddress": true,
   "includeMempoolOutputs": true,

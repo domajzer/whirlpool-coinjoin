@@ -107,7 +107,7 @@ def start_infrastructure():
     node.wait_ready()
     print(node.load_wallet())
     print("- started whirlpool-db")
-    sleep(25)
+    sleep(20)
     global whirlpool_server_ports
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
@@ -116,13 +116,13 @@ def start_infrastructure():
         cpu=2.0,
         memory=2048
     )
+    sleep(30)
     if args.driver == "kubernetes":
         custom_properties_path = utils.update_coordinator_config(
                                     "containers/whirlpool-coordinator/custom.properties",
                                     whirlpool_db_ip,
-                                    whirlpool_db_ports,
                                     btc_node_ip,
-                                    btc_node_ports)
+                                    "logs")
         
     elif args.driver == "docker":
         custom_properties_path = "containers/whirlpool-coordinator/custom.properties"
@@ -134,7 +134,13 @@ def start_infrastructure():
 def start_client(idx, wallet, client_name, config_path):
     sleep(wallet.get("delay", 20 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
-    cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
+    
+    if args.driver == "docker":
+        cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
+        
+    else: 
+        cmd = ["/bin/sh", "-c", f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"]
+        
     try:
         ip, manager_ports = driver.run(
             name,
@@ -157,6 +163,7 @@ def start_client(idx, wallet, client_name, config_path):
         )
         sleep(5)
         driver.upload(name , config_path, "/usr/src/app/.sparrow/testnet/config")
+        print("HERE")
         if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server"), 8080 if args.driver == "docker" else whirlpool_server_ports[8080]):
             print(f"Failed to setup socat for {name}")
             return None
@@ -172,7 +179,7 @@ def start_clients(wallets, name):
     print("Starting clients")
     batch_size = 3 
     if args.driver == "kubernetes":
-        config_path = utils.update_client_config("containers/whirlpool-sparrow-client/config", node.internal_ip, node.port)
+        config_path = utils.update_client_config("containers/whirlpool-sparrow-client/config", node.internal_ip, "logs")
             
     elif args.driver == "docker":
         config_path = "containers/whirlpool-sparrow-client/config"

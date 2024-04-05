@@ -7,7 +7,7 @@ def batched(data, batch_size=1):
     for ndx in range(0, length, batch_size):
         yield data[ndx : min(ndx + batch_size, length)]
         
-def update_coordinator_config(file_path, db_host, rpc_host, rpc_port, temp_dir=None):
+def update_coordinator_config(file_path, db_host, rpc_host, temp_dir):
     with open(file_path, 'r') as file:
         content = file.readlines()
         
@@ -17,7 +17,7 @@ def update_coordinator_config(file_path, db_host, rpc_host, rpc_port, temp_dir=N
     
     new_db_url = f'spring.datasource.dburl=jdbc:mysql://{db_host}:3306/whirlpool_testnet\n'
     new_rpc_host = f'server.rpc-client.host={rpc_host}\n'
-    new_rpc_port = f'server.rpc-client.port={rpc_port}\n'
+    new_rpc_port = f'server.rpc-client.port=18332\n'
     
     with tempfile.NamedTemporaryFile(mode='w+t', delete=False, dir=temp_dir) as tmp_file:
         temp_file_name = tmp_file.name
@@ -35,11 +35,11 @@ def update_coordinator_config(file_path, db_host, rpc_host, rpc_port, temp_dir=N
     print("Configuration written to file:", temp_file_name)
     return temp_file_name
 
-def update_client_config(file_path, rpc_host, rpc_port, temp_dir=None):
+def update_client_config(file_path, rpc_host, temp_dir):
     with open(file_path, 'r') as file:
         config = json.load(file)
     
-    new_url = f"http://{rpc_host}:{rpc_port}"
+    new_url = f"http://{rpc_host}:18332"
     
     config["coreServer"] = new_url
     config["recentCoreServers"] = [new_url]

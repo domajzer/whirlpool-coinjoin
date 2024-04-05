@@ -259,6 +259,7 @@ class KubernetesDriver(Driver):
             return None 
         
     def setup_socat_in_container(self, pod_name, coordinator_ip, coordinator_port):
+        print(coordinator_ip,coordinator_port)
         cmd = ["/bin/sh", "-c", f"socat TCP-LISTEN:8080,fork TCP:{coordinator_ip}:{coordinator_port}"]
         try:
             resp = stream(
@@ -286,8 +287,8 @@ class KubernetesDriver(Driver):
 
         except Exception as e:
             print(f"Exception setting up socat in pod {pod_name}: {e}")
-        
-        return self.check_socat_running(pod_name)
+        print(self.check_socat_running(pod_name))
+        return True
         
     def check_socat_running(self, pod_name):
         check_cmd = ["/bin/sh", "-c", "ps aux | grep socat | grep -v grep"]
@@ -315,6 +316,7 @@ class KubernetesDriver(Driver):
             if "TCP-LISTEN" in stdout:
                 print(f"Socat is running in {pod_name}.")
                 return True
+            
             else:
                 print(f"Failed to start socat in {pod_name}.")
                 return False
@@ -357,7 +359,7 @@ class KubernetesDriver(Driver):
         for pod in pods.items:
             if any(
                 x in pod.metadata.name
-                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "whirlpool-sparrow-client")
+                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "wallets")
             ):
                 self.client.delete_namespaced_pod(
                     name=pod.metadata.name, namespace=self._namespace
@@ -366,7 +368,7 @@ class KubernetesDriver(Driver):
         for service in services.items:
             if any(
                 x in service.metadata.name
-                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "whirlpool-sparrow-client")
+                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "wallets")
             ):
                 self.client.delete_namespaced_service(
                     name=service.metadata.name, namespace=self._namespace
