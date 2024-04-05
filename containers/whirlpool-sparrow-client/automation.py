@@ -399,7 +399,7 @@ def main():
         options.debug = True
         
     tmux_session_name = "sparrow_wallet"
-    sparrow_command = "./Sparrow/bin/Sparrow --network testnet"
+    sparrow_command = "./Sparrow/bin/Sparrow --network testnet --dir .sparrow"
     utility.system_info(options)
     
     for attempt in range(5):  

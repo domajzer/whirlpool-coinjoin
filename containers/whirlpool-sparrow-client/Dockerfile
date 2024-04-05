@@ -30,23 +30,18 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser appuser
+
+USER 1000:1000
+
 WORKDIR /usr/src/app
 COPY --from=builder /build/sparrow/build/jpackage/sparrow*.tar.gz .
-
 RUN tar -xzf sparrow*.tar.gz && \
     rm sparrow*.tar.gz
 
 COPY automation.py .
 COPY utility.py .
-RUN mkdir -p /root/.sparrow/testnet/wallets
-COPY config /root/.sparrow/testnet
 
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-RUN groupadd -g 1000 appuser && \
-    useradd -r -u 1000 -g appuser appuser
-
-RUN chown -R appuser:appuser /usr/src/app /root/.sparrow
-
-USER 1000:1000
+RUN mkdir -p .sparrow/testnet/wallets
+COPY config .sparrow/testnet

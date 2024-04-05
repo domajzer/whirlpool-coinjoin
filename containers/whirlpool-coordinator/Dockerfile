@@ -2,6 +2,7 @@ FROM maven:3.6.3-jdk-11
 WORKDIR /app
 RUN git clone https://code.samourai.io/whirlpool/whirlpool-server.git
 WORKDIR /app/whirlpool-server
+RUN git checkout tags/0.23.36
 
 RUN mvn clean install -Dmaven.test.skip=true
 
