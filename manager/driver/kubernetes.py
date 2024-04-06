@@ -273,22 +273,24 @@ class KubernetesDriver(Driver):
                 tty=False,
                 _preload_content=False,
             )
+            sleep(2)
+            start_time = time()
+            timeout_seconds = 10
+            while time() - start_time < timeout_seconds:
+                if self.check_socat_running(pod_name):
+                    resp.close() 
+                    return True
+                
+                sleep(2)
+                
+            else:
+                print(f"Timeout waiting for socat to start in {pod_name}.")
 
-            stdout = ""
-            while resp.is_open():
-                resp.update(timeout=1)
-                if resp.peek_stdout():
-                    stdout += resp.read_stdout()
-                if resp.peek_stderr():
-                    print(f"STDERR: {resp.read_stderr()}")
-                    
-            resp.close()
-            print(f"Attempted to start socat in {pod_name}.")
+            resp.close() 
+            return False
 
         except Exception as e:
             print(f"Exception setting up socat in pod {pod_name}: {e}")
-        print(self.check_socat_running(pod_name))
-        return True
         
     def check_socat_running(self, pod_name):
         check_cmd = ["/bin/sh", "-c", "ps aux | grep socat | grep -v grep"]
