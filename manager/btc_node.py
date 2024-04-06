@@ -58,14 +58,34 @@ class BtcNode:
             "params": [address, amount],
         }
         return self._rpc(request, WALLET)
-
+    
+    def import_private_key(self, wif_key, label=""):
+        request = {
+        "method": "importprivkey",
+        "params": [wif_key, label, True], 
+        }
+        return self._rpc(request, WALLET)
+        
     def get_wallet_info(self):
         request = {
             "method": "getwalletinfo",
             "params": [],
         }
         return self._rpc(request, WALLET)
-
+    
+    def wait_for_wallet_ready(self):
+        print("Waiting for wallet to be ready...")
+        
+        while True:
+            wallet_info = self.get_wallet_info()
+            if "scanning" not in wallet_info or wallet_info["scanning"] is False:
+                print("Wallet is ready.")
+                break
+            
+            else:
+                print("Wallet is still scanning the blockchain. Waiting...")
+                sleep(10)
+        
     def get_block_info(self):
         request = {
             "method": "getblockinfo",

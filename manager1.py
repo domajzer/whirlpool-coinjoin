@@ -104,8 +104,19 @@ def start_infrastructure():
         cpu=1,
         memory=2048
     )
+    
     node.wait_ready()
+    if args.wif:
+        try:
+            node.import_private_key(args.wif)
+            node.wait_for_wallet_ready()
+            
+        finally:
+            args.wif = " " * len(args.wif)
+            del args.wif
+        
     print(node.load_wallet())
+    
     print("- started whirlpool-db")
     sleep(20)
     global whirlpool_server_ports
@@ -431,6 +442,7 @@ if __name__ == "__main__":
     parser.add_argument("--reuse-namespace", action="store_true", default=False)
     parser.add_argument("--no-logs", action="store_true", default=False)
     parser.add_argument("--proxy", type=str, default="")
+    parser.add_argument("--wif", type=str, default="")
 
     args = parser.parse_args()
 
