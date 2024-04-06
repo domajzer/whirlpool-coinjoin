@@ -114,8 +114,13 @@ def start_infrastructure():
         finally:
             args.wif = " " * len(args.wif)
             del args.wif
+            
+    if args.wallet:
+        driver.upload("bitcoin-testnet-node", args.wallet, "home/bitcoin/.bitcoin/testnet3/wallets")
+        sleep(30)
         
     print(node.load_wallet())
+    node.wait_for_wallet_ready()
     
     print("- started whirlpool-db")
     sleep(20)
@@ -443,6 +448,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-logs", action="store_true", default=False)
     parser.add_argument("--proxy", type=str, default="")
     parser.add_argument("--wif", type=str, default="")
+    parser.add_argument("--wallet", type=str, default="")
 
     args = parser.parse_args()
 

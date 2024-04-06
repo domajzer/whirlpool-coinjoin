@@ -3,3 +3,4 @@ logs/*
 logs_temp/*
 !logs/addresses_send.txt
 containers/bitcoin-testnet-node/testnet3
+containers/bitcoin-testnet-node/wallets/wallet/*

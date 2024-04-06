@@ -2,7 +2,7 @@ import requests
 import json
 from time import sleep
 
-WALLET = "MainTestnetWallet"
+WALLET = "wallet"
 
 class BtcNode:
     def __init__(self, host="localhost", port=18332, rpc_user="TestnetUser1", rpc_password="Testnet123", internal_ip="", proxy=""):
@@ -77,14 +77,19 @@ class BtcNode:
         print("Waiting for wallet to be ready...")
         
         while True:
-            wallet_info = self.get_wallet_info()
-            if "scanning" not in wallet_info or wallet_info["scanning"] is False:
-                print("Wallet is ready.")
-                break
+            try: 
+                wallet_info = self.get_wallet_info()
+                if "scanning" not in wallet_info or wallet_info["scanning"] is False:
+                    print("Wallet is ready.")
+                    break
             
-            else:
-                print("Wallet is still scanning the blockchain. Waiting...")
-                sleep(10)
+                else:
+                    print("Wallet is still scanning the blockchain. Waiting...")
+                    sleep(10)
+            except Exception as e:
+                print(f"Unkown wallet {e}")
+                
+            sleep(10)
         
     def get_block_info(self):
         request = {
