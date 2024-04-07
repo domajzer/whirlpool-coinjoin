@@ -101,7 +101,7 @@ def start_infrastructure():
         f"{args.image_prefix}whirlpool-db",
         ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
-        cpu=1.3,
+        cpu=1.2,
         memory=1520
     )
     
@@ -130,7 +130,7 @@ def start_infrastructure():
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={8080: 8080},
-        cpu=3.0,
+        cpu=2.5,
         memory=2048
     )
     sleep(30)
@@ -146,7 +146,6 @@ def start_infrastructure():
     
     driver.upload("whirlpool-server", custom_properties_path, "/app/whirlpool-server/config.properties")
     sleep(30)
-    wait_ready_coordinator("whirlpool-server")
     print("- started coordinator")
 
 def start_client(idx, wallet, client_name, config_path):
@@ -166,7 +165,7 @@ def start_client(idx, wallet, client_name, config_path):
             ports={37128: 37129 + idx},
             tty=True,
             command=cmd,
-            cpu=1.4,
+            cpu=1.2,
             memory=1024,
         )
         funds_btc = [fund / BTC for fund in wallet.get("funds", [])]
@@ -359,19 +358,6 @@ def check_liquidity_premix_finish(clients):
     
     return False
 
-def wait_ready_coordinator(coordinator_image):
-    while True:
-        driver.capture_and_save_logs(coordinator_image, f"logs/{coordinator_image}.txt")
-
-        with open(f"logs/{coordinator_image}.txt", 'r') as file:
-            for line in file:
-                if "Signing address:" in line:
-                    print(f"Client {coordinator_image} successfully started.")
-                    return True
-                if "HikariPool-1 - Shutdown completed." in line:
-                    print("failed to start coordiantor")
-        sleep(60)
-    
 def run():
     if args.scenario:
         with open(args.scenario) as f:
