@@ -327,15 +327,15 @@ class KubernetesDriver(Driver):
             print(f"Exception while checking if socat is running in pod {pod_name}: {e}")
             return False
         
-    def capture_and_save_logs(self, pod_name, log_file_path):
+    def capture_and_save_logs(self, pod, log_file_path):
         try:
-            logs = self.client.read_namespaced_pod_log(name=pod_name, namespace=self._namespace)
+            logs = self.client.read_namespaced_pod_log(pod.name, namespace=self._namespace)
             with open(log_file_path, "w") as log_file:
                 log_file.write(logs)
-            print(f"Captured and saved logs for {pod_name} to {log_file_path}")
+            print(f"Captured and saved logs for {pod.name} to {log_file_path}")
             
         except Exception as e:
-            print(f"Failed to capture and save logs for {pod_name}: {e}")
+            print(f"Failed to capture and save logs for {pod.name}: {e}")
 
     def create_persistent_volume_claim(self, pvc_name, storage_size, storage_class="standard"):
         pvc_manifest = {
