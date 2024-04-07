@@ -378,13 +378,14 @@ def run():
             
         print("Changing coordinator config")    
         driver.upload("whirlpool-server", "stopfile", "/app/stopfile")
-        
-        start_clients(SCENARIO["wallets"], "wallets")
-        
+        sleep(30)
+
         stop_log_capture_threads(threads)
         shutdown_event.clear()
-        
         sleep(30)
+
+            
+        start_clients(SCENARIO["wallets"], "wallets")
         
         new_threads = start_log_capture_in_threads(clients, node)
             
