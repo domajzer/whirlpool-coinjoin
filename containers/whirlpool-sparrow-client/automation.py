@@ -71,7 +71,7 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
                     return 0
 
                 elif "Unconfirmed" in content:
-                    for _ in range(100):
+                    for _ in range(120):
                         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
                         with open(file_path, 'r') as file:
@@ -85,7 +85,7 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
                             break
 
                         else:
-                            sleep(30)
+                            sleep(35)
 
                 else:
                     print(f"{counter} \033[31m  Date pattern not found in content. Waiting for input UTXO\033[0m")
@@ -94,7 +94,7 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
                         print("in refresh")
                         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                         utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
-                        sleep(30)
+                        sleep(35)
                         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                     counter -= 1
                     continue
@@ -126,7 +126,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
 
     sleep(1.5)
     
-    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 1000)
+    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 2500)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
         return 2
@@ -187,7 +187,6 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
 def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix variable
     counter = 0 
     start_UTXO = 0
-    #start premix 
     
     start_mixing_keystrokes_premix = ['W', 'Enter', 'Enter', 'P', 'Enter', 'T', 'Enter']
     start_mixing_keystrokes_postmix = ['W', 'Enter', 'Enter', 'P', 'P', 'Enter', 'T', 'Enter']

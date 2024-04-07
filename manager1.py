@@ -121,6 +121,7 @@ def start_infrastructure():
         
     print(node.load_wallet())
     node.wait_for_wallet_ready()
+    print(node.get_wallet_info())
     
     print("- started whirlpool-db")
     sleep(20)
@@ -177,10 +178,9 @@ def start_client(idx, wallet, client_name, config_path):
             proxy=args.proxy,
             amount=funds_btc
         )
-        sleep(5)
+        sleep(3)
         driver.upload(name , config_path, "/usr/src/app/.sparrow/testnet/config")
-        print("HERE")
-        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server"), 8080 if args.driver == "docker" else whirlpool_server_ports[8080]):
+        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server"), 8080):
             print(f"Failed to setup socat for {name}")
             return None
         
