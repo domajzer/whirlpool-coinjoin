@@ -147,7 +147,6 @@ def start_infrastructure():
     driver.upload("whirlpool-server", custom_properties_path, "/app/whirlpool-server/config.properties")
     sleep(30)
     wait_ready_coordinator("whirlpool-server")
-    print("- started coordinator")
 
 def start_client(idx, wallet, client_name, config_path):
     sleep(wallet.get("delay", 20 * idx))
@@ -366,10 +365,13 @@ def wait_ready_coordinator(coordinator_image):
         with open(f"logs/{coordinator_image}.txt", 'r') as file:
             for line in file:
                 if "Signing address:" in line:
-                    print(f"Client {coordinator_image} successfully started.")
+                    print("- started coordinator")
                     return True
+                
                 if "HikariPool-1 - Shutdown completed." in line:
                     print("failed to start coordiantor")
+                    return False
+                
         sleep(60)
     
 def run():
