@@ -82,7 +82,7 @@ def start_infrastructure():
         f"{args.image_prefix}bitcoin-testnet-node",
         ports={18332: 18332},
         cpu=6.0,
-        memory=8192,
+        memory=5000,
         volumes=volume
     )
     print(btc_node_ip)
@@ -102,7 +102,7 @@ def start_infrastructure():
         ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1.2,
-        memory=2048
+        memory=1520
     )
     
     node.wait_ready()
@@ -130,8 +130,8 @@ def start_infrastructure():
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={8080: 8080},
-        cpu=3.0,
-        memory=3072
+        cpu=2.0,
+        memory=2048
     )
     sleep(30)
     if args.driver == "kubernetes":
@@ -166,7 +166,7 @@ def start_client(idx, wallet, client_name, config_path):
             tty=True,
             command=cmd,
             cpu=0.8,
-            memory=1520,
+            memory=1024,
         )
         funds_btc = [fund / BTC for fund in wallet.get("funds", [])]
         
