@@ -81,7 +81,7 @@ def start_infrastructure():
         "bitcoin-testnet-node",
         f"{args.image_prefix}bitcoin-testnet-node",
         ports={18332: 18332},
-        cpu=5.0,
+        cpu=8.0,
         memory=5000,
         volumes=volume
     )
@@ -130,7 +130,7 @@ def start_infrastructure():
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={8080: 8080},
-        cpu=2.0,
+        cpu=2.5,
         memory=2048
     )
     sleep(30)
@@ -165,7 +165,7 @@ def start_client(idx, wallet, client_name, config_path):
             ports={37128: 37129 + idx},
             tty=True,
             command=cmd,
-            cpu=0.9,
+            cpu=1.2,
             memory=1024,
         )
         funds_btc = [fund / BTC for fund in wallet.get("funds", [])]
