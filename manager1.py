@@ -383,13 +383,17 @@ def run():
         stop_log_capture_threads(threads)
         shutdown_event.clear()
         sleep(30)
-
             
         start_clients(SCENARIO["wallets"], "wallets")
-        
+        initial_block = node.get_block_count()
         new_threads = start_log_capture_in_threads(clients, node)
             
-        input("Press Enter to stop all other running containers...\n")
+        while (SCENARIO["blocks"] == 0 or initial_block < SCENARIO["blocks"]):
+            print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
+            driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
+            driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
+            sleep(45)
+            
         print("ALL WALLETS HAVE FINISHED MIXING.....")
 
     except KeyboardInterrupt:
@@ -399,9 +403,6 @@ def run():
     finally:
         stop_log_capture_threads(new_threads)
         shutdown_event.set()
-        print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
-        driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
-        driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
         
         print("STOPPING COORDINATOR")
         driver.stop("whirlpool-server")
