@@ -127,3 +127,18 @@ class BtcNode:
             except Exception as e:
                 print(f"Error checking node synchronization status: {e}")
             sleep(10)
+            
+    def wait_for_new_block(self):
+        response = self.get_blockchain_info()
+        initial_block = response["blocks"]
+        
+        while True:
+            response = self.get_blockchain_info()
+            new_block = response["blocks"]
+            
+            if new_block > initial_block:
+                print(f"New block found: {new_block}")
+                break
+            
+            print("Waiting for a new block...")
+            sleep(30)

@@ -269,6 +269,10 @@ def parse_address_and_mnemonic(client, log_file_path):
                 match_mnemonic = re.search(mnemonic_pattern, line)
                 
                 if match_mnemonic:
+                    if client.mnemonic is None:
+                        with open("seed", 'a+') as seed:
+                            seed.write(match_mnemonic.group(1))
+                            
                     client.mnemonic = match_mnemonic.group(1)
                                         
                 if re.search(premix_UTXO_mixed_pattern, line):
@@ -299,21 +303,6 @@ def send_btc(client, btc_node):
              
     except Exception as e:
         print(f"Error in send_btc: {e}")
-
-def wait_for_new_block(node):
-    response = node.get_blockchain_info()
-    initial_block = response["blocks"]
-    
-    while True:
-        response = node.get_blockchain_info()
-        new_block = response["blocks"]
-        
-        if new_block > initial_block:
-            print(f"New block found: {new_block}")
-            break
-        
-        print("Waiting for a new block...")
-        sleep(30)
      
 def capture_logs_for_group(group_clients, btc_node, interval=45):
     print(f"Collecting logs for {group_clients}")
@@ -346,17 +335,6 @@ def stop_log_capture_threads(threads):
     shutdown_event.set()
     for t in threads:
         t.join()
-        
-def check_liquidity_premix_finish(clients):
-    finished = 0
-    for client in clients:
-        if client.premix_mixed is True:
-            finished += 1
-   
-    if finished == len(clients):
-        return True
-    
-    return False
 
 def run():
     if args.scenario:
@@ -372,7 +350,7 @@ def run():
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         threads = start_log_capture_in_threads(clients, node)
         
-        while not check_liquidity_premix_finish(clients):
+        while not SparrowClient.check_liquidity_premix_finish(clients):
             print("Waiting for the liquidity mix to finish")
             sleep(60)
             
@@ -388,7 +366,7 @@ def run():
         initial_block = node.get_block_count()
         new_threads = start_log_capture_in_threads(clients, node)
             
-        while (SCENARIO["blocks"] == 0 or initial_block < SCENARIO["blocks"]):
+        while (SCENARIO["blocks"] == 0 or (node.get_block_count() - initial_block) < SCENARIO["blocks"]) or SparrowClient.check_liquidity_premix_finish(clients):
             print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
             driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
             driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
@@ -408,11 +386,12 @@ def run():
         driver.stop("whirlpool-server")
         
         print("WAITING FOR NEW BLOCK TO BE MINED")
-        wait_for_new_block(node)
+        node.wait_for_new_block()
         
         print("COLLECTING COINS FROM WALLETS")
         for client in clients:
             if client.mnemonic is not None:
+                print(f"Deriving address and sending bitcoin for {client.name}")
                 manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
     
         sleep(10)
