@@ -13,3 +13,12 @@ class SparrowClient:
         self.account_number = account_number
         self.connected = connected
         self.premix_mixed = mixed 
+    
+    @staticmethod
+    def check_liquidity_premix_finish(clients):
+        finished = 0
+        for client in clients:
+            if client.premix_mixed:
+                finished += 1
+        
+        return finished == len(clients)
