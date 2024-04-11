@@ -82,7 +82,7 @@ def start_infrastructure():
         f"{args.image_prefix}bitcoin-testnet-node",
         ports={18332: 18332},
         cpu=6.4,
-        memory=5000,
+        memory=5520,
         volumes=volume
     )
     print(btc_node_ip)
