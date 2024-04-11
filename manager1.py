@@ -271,7 +271,7 @@ def parse_address_and_mnemonic(client, log_file_path):
                 if match_mnemonic:
                     if client.mnemonic is None:
                         with open("seed", 'a+') as seed:
-                            seed.write(match_mnemonic.group(1))
+                            seed.write(match_mnemonic.group(1) + '\n')
                             
                     client.mnemonic = match_mnemonic.group(1)
                                         
