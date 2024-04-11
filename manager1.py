@@ -101,7 +101,7 @@ def start_infrastructure():
         f"{args.image_prefix}whirlpool-db",
         ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
-        cpu=1,
+        cpu=1.4,
         memory=1024
     )
     
