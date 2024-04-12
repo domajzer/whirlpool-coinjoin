@@ -91,12 +91,12 @@ class BtcNode:
                 
             sleep(10)
         
-    def get_block_info(self):
+    def get_block_count(self):
         request = {
-            "method": "getblockinfo",
+            "method": "getblockcount",
             "params": [],
         }
-        return self._rpc(request, WALLET)
+        return self._rpc(request)
         
     def load_wallet(self):
         request = {

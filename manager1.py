@@ -122,6 +122,7 @@ def start_infrastructure():
     print(node.load_wallet())
     node.wait_for_wallet_ready()
     print(node.get_wallet_info())
+    print(node.get_block_count())
     
     print("- started whirlpool-db")
     sleep(20)
@@ -363,10 +364,10 @@ def run():
         sleep(30)
             
         start_clients(SCENARIO["wallets"], "wallets")
-        initial_block = node.get_block_info()
+        initial_block = node.get_block_count()
         new_threads = start_log_capture_in_threads(clients, node)
             
-        while (SCENARIO["blocks"] == 0 or (node.get_block_info() - initial_block) < SCENARIO["blocks"]) and not SparrowClient.check_liquidity_premix_finish(clients):
+        while (SCENARIO["blocks"] == 0 or (node.get_block_count() - initial_block) < SCENARIO["blocks"]) and not SparrowClient.check_liquidity_premix_finish(clients):
             print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
             driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
             driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
