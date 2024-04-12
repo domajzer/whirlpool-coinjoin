@@ -292,8 +292,13 @@ def send_btc(client, btc_node):
                     try:
                         client.address.append(manager.pathDerivation.find_next_address(client.mnemonic, client.account_number))
                         transaction_info = btc_node.fund_address(client.address[client.account_number], amount)
-                        
                         print("Transaction info:", transaction_info)
+                        
+                        if "Error" in transaction_info:
+                            client.address.pop()
+                            btc_node.get_wallet_info()
+                            return
+                        
                         client.account_number += 1
 
                     except Exception as e:

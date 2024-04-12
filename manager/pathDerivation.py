@@ -9,8 +9,8 @@ os.environ['CRYPTOTOOLS_RPC_PW'] = 'Testnet123'
 
 from cryptos import *
 from cryptotools.BTC import Xprv, Address
-from manager import btc_node #USE WHEN RUNNING MANAGER1.PY
-#import btc_node #USE WHEN RUNNING PATHDERVIATION.PY AS A SOLO APPLICATION.
+#from manager import btc_node #USE WHEN RUNNING MANAGER1.PY
+import btc_node #USE WHEN RUNNING PATHDERVIATION.PY AS A SOLO APPLICATION.
 
 node = btc_node.BtcNode()
 
@@ -61,7 +61,7 @@ def find_UTXO(xprv, account_type):
         print(f"Amount: {amount_satoshis} satoshis for address {address}")
         
         if amount_satoshis > 300:
-            tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qc0g63yf95g6kgz9dt960fdlsar0klfrnmz2qxs", amount_satoshis  - 300, 5)
+            tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qvm88fe9dzjdvesdsg5njg83gds7quqspxnprw3", amount_satoshis  - 300, 5)
             print(f"Transaction Hash: {tx_hash}")
             time.sleep(5)
     
@@ -83,3 +83,9 @@ def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, 
     if attempt == max_attempts:
         print("Max attempts reached. Transaction not sent.")
         return None 
+def open_seed_and_sendtbtc():
+    with open("seed", 'r') as file:
+        for line in file:
+            cleaned_line = line.strip()
+            print(cleaned_line)
+            send_all_tbtc_back(cleaned_line)
