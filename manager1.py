@@ -102,7 +102,7 @@ def start_infrastructure():
         ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
         cpu=1.4,
-        memory=1024
+        memory=1520
     )
     
     node.wait_ready()
@@ -131,8 +131,8 @@ def start_infrastructure():
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={8080: 8080},
-        cpu=2.5,
-        memory=2048
+        cpu=3.2,
+        memory=4096
     )
     sleep(30)
     if args.driver == "kubernetes":
