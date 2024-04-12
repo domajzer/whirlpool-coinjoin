@@ -150,7 +150,7 @@ def start_infrastructure():
     print("- started coordinator")
 
 def start_client(idx, wallet, client_name, config_path):
-    sleep(wallet.get("delay", 20 * idx))
+    sleep(wallet.get("delay", 0 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
     
     if args.driver == "docker":
@@ -309,6 +309,8 @@ def send_btc(client, btc_node):
              
     except Exception as e:
         print(f"Error in send_btc: {e}")
+        
+    sleep(2)
      
 def capture_logs_for_group(group_clients, btc_node, interval=45):
     print(f"Collecting logs for {group_clients}")
