@@ -13,6 +13,7 @@ from manager import btc_node #USE WHEN RUNNING MANAGER1.PY
 #import btc_node #USE WHEN RUNNING PATHDERVIATION.PY AS A SOLO APPLICATION.
 
 node = btc_node.BtcNode()
+DUST_LIMIT = 300
 
 def find_next_address(mnemonic, account_number):
     xprv = Xprv.from_mnemonic(mnemonic)
@@ -60,7 +61,7 @@ def find_UTXO(xprv, account_type):
         amount_satoshis = int(amount * 100_000_000)
         print(f"Amount: {amount_satoshis} satoshis for address {address}")
         
-        if amount_satoshis > 300:
+        if amount_satoshis - 300 > DUST_LIMIT:
             tx_hash = create_and_broadcast_tx(private_key_hex, address, "tb1qvm88fe9dzjdvesdsg5njg83gds7quqspxnprw3", amount_satoshis  - 300, 5)
             print(f"Transaction Hash: {tx_hash}")
             time.sleep(5)

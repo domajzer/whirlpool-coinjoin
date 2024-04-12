@@ -71,7 +71,7 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
                     return 0
 
                 elif "Unconfirmed" in content:
-                    for _ in range(120):
+                    for _ in range(1200):
                         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
                         with open(file_path, 'r') as file:
