@@ -9,8 +9,8 @@ os.environ['CRYPTOTOOLS_RPC_PW'] = 'Testnet123'
 
 from cryptos import *
 from cryptotools.BTC import Xprv, Address
-#from manager import btc_node #USE WHEN RUNNING MANAGER1.PY
-import btc_node #USE WHEN RUNNING PATHDERVIATION.PY AS A SOLO APPLICATION.
+from manager import btc_node #USE WHEN RUNNING MANAGER1.PY
+#import btc_node #USE WHEN RUNNING PATHDERVIATION.PY AS A SOLO APPLICATION.
 
 node = btc_node.BtcNode()
 
