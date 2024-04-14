@@ -4,3 +4,5 @@ logs_temp/*
 !logs/addresses_send.txt
 containers/bitcoin-testnet-node/testnet3
 containers/bitcoin-testnet-node/wallets/wallet/*
+containers/whirlpool-sparrow-client/transaction.txt
+containers/whirlpool-sparrow-client/utxo.txt

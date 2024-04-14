@@ -1,4 +1,5 @@
 import os
+import math
 import time
 os.environ['CRYPTOTOOLS_NETWORK'] = 'test'
 os.environ['CRYPTOTOOLS_BACKEND'] = 'rpc'
@@ -59,6 +60,7 @@ def find_UTXO(xprv, account_type):
         
         amount = sum(utxo['amount'] for utxo in address_utxos)
         amount_satoshis = int(amount * 100_000_000)
+        amount_satoshis = math.floor(amount_satoshis / 100) * 100
         print(f"Amount: {amount_satoshis} satoshis for address {address}")
         
         if amount_satoshis - 300 > DUST_LIMIT:
@@ -78,7 +80,7 @@ def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, 
         
         except Exception as e: 
             print(f"Transaction failed due to timeout. Attempt {attempt + 1} of {max_attempts}. Retrying in 15 seconds...")
-            time.sleep(15)
+            time.sleep(60)
             attempt += 1
         
     if attempt == max_attempts:
@@ -90,3 +92,7 @@ def open_seed_and_sendtbtc():
             cleaned_line = line.strip()
             print(cleaned_line)
             send_all_tbtc_back(cleaned_line)
+            
+            
+            
+#sunset palace author fame merge open carry have casino half body case

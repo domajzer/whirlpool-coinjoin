@@ -96,12 +96,12 @@ def parse_address(input_file):
 
 def check_for_UTXO(file_path):
     UTXO_counter = 0
-    date_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+    pattern = r'^.*?(Unconfirmed|\d{4}-\d{2}-\d{2} \d{2}:\d{2}).*?$'
 
     try:
         with open(file_path, 'r') as file:
             for line in file:
-                if re.search(date_pattern, line) or "Unconfirmed" in line:
+                if re.search(pattern, line):
                     UTXO_counter += 1
         return UTXO_counter
     
@@ -134,6 +134,3 @@ def retry_if_not_connected(session_name, pane_id, file_path, options):
             print(f"An error occurred: {e}")
             
     return 1
-                    
-            
-    
