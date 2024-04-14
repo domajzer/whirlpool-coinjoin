@@ -3,18 +3,13 @@
     "rounds": 10,
     "blocks": 0,
     "liquidity-wallets": [
-      {"funds": [6500], "delay": 0},
-      {"funds": [6500], "delay": 0},
-      {"funds": [6500], "delay": 0},
-      {"funds": [6500], "delay": 0},
-      {"funds": [6500], "delay": 0}
+      {"funds": [10000], "delay": 0},
+      {"funds": [10000], "delay": 0},
+      {"funds": [10000], "delay": 0},
+      {"funds": [10000], "delay": 0},
+      {"funds": [10000], "delay": 0}
     ],
     "wallets": [
-        {"funds": [6500], "delay": 0},
-        {"funds": [6500], "delay": 0},
-        {"funds": [6500], "delay": 0},
-        {"funds": [6500], "delay": 0},
-        {"funds": [6500], "delay": 0},
         {"funds": [6500], "delay": 0},
         {"funds": [6500], "delay": 0},
         {"funds": [6500], "delay": 0},

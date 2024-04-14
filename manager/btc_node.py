@@ -2,7 +2,7 @@ import requests
 import json
 from time import sleep
 
-WALLET = "MainTestnetWallet"
+WALLET = "wallet"
 
 class BtcNode:
     def __init__(self, host="localhost", port=18332, rpc_user="TestnetUser1", rpc_password="Testnet123", internal_ip="", proxy=""):
@@ -23,7 +23,7 @@ class BtcNode:
                 data=json.dumps(request),
                 auth=(self.rpc_user, self.rpc_password),
                 proxies=dict(http=self.proxy),
-                timeout=45,
+                timeout=60,
             )
         except requests.exceptions.Timeout:
             return "timeout"
@@ -58,20 +58,45 @@ class BtcNode:
             "params": [address, amount],
         }
         return self._rpc(request, WALLET)
-
+    
+    def import_private_key(self, wif_key, label=""):
+        request = {
+        "method": "importprivkey",
+        "params": [wif_key, label, True], 
+        }
+        return self._rpc(request, WALLET)
+        
     def get_wallet_info(self):
         request = {
             "method": "getwalletinfo",
             "params": [],
         }
         return self._rpc(request, WALLET)
-
-    def get_block_info(self):
+    
+    def wait_for_wallet_ready(self):
+        print("Waiting for wallet to be ready...")
+        
+        while True:
+            try: 
+                wallet_info = self.get_wallet_info()
+                if "scanning" not in wallet_info or wallet_info["scanning"] is False:
+                    print("Wallet is ready.")
+                    break
+            
+                else:
+                    print("Wallet is still scanning the blockchain. Waiting...")
+                    sleep(10)
+            except Exception as e:
+                print(f"Unkown wallet {e}")
+                
+            sleep(10)
+        
+    def get_block_count(self):
         request = {
-            "method": "getblockinfo",
+            "method": "getblockcount",
             "params": [],
         }
-        return self._rpc(request, WALLET)
+        return self._rpc(request)
         
     def load_wallet(self):
         request = {
@@ -102,3 +127,18 @@ class BtcNode:
             except Exception as e:
                 print(f"Error checking node synchronization status: {e}")
             sleep(10)
+            
+    def wait_for_new_block(self):
+        response = self.get_blockchain_info()
+        initial_block = response["blocks"]
+        
+        while True:
+            response = self.get_blockchain_info()
+            new_block = response["blocks"]
+            
+            if new_block > initial_block:
+                print(f"New block found: {new_block}")
+                break
+            
+            print("Waiting for a new block...")
+            sleep(30)

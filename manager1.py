@@ -3,10 +3,10 @@
 from manager.btc_node import BtcNode
 from manager.sparrow_client import SparrowClient
 from time import sleep, time
+from manager import utils
 import manager.pathDerivation 
 import os
 import re
-import datetime
 import json
 import argparse
 from threading import Thread, Event, Timer
@@ -55,47 +55,44 @@ def prepare_image(name):
         driver.build(name, f"./containers/{name}")
         print(f"- image built {prefixed_name}")
 
-
 def prepare_images():
     print("Preparing images")
     prepare_image("bitcoin-testnet-node")
     prepare_image("whirlpool-db")
-    prepare_image("whirlpool-db-init")
     prepare_image("whirlpool-server")
     prepare_image("whirlpool-sparrow-client")
 
 def start_infrastructure():
     
-    if hasattr(driver, 'create_persistent_volume_claim'):
+    if args.driver == "kubernetes":
         try:
             driver.create_persistent_volume_claim(pvc_name="testnet-chain", storage_size=50) #STORAGE SIZE IN GI
         except:
             print("PVC arelady created")
         volume = {"testnet-chain": "/home/bitcoin/.bitcoin/testnet3"}
         print("Kubernetes infrastructure is being started.")
-    elif hasattr(driver, 'network'):
+    elif args.driver == "docker":
         testnet3_path = os.path.abspath("containers/bitcoin-testnet-node/testnet3")
         volume = {testnet3_path: {'bind': '/home/bitcoin/.bitcoin/testnet3', 'mode': 'rw'}}
         print("Docker infrastructure is being started.")
-    else:
-        raise Exception("Driver type is unrecognized. Unable to start infrastructure.")
-   
+
     print("Starting infrastructure")
     btc_node_ip, btc_node_ports = driver.run(
         "bitcoin-testnet-node",
         f"{args.image_prefix}bitcoin-testnet-node",
         ports={18332: 18332},
-        cpu=4,
-        memory=4096,
+        cpu=6.4,
+        memory=5520,
         volumes=volume
     )
     print(btc_node_ip)
     global node
     node = BtcNode(
-        host=btc_node_ip,
-        port=18332,
+        host=btc_node_ip if args.proxy else args.control_ip,
+        port=18332 if args.proxy else btc_node_ports[18332],
         rpc_user="TestnetUser1",
-        rpc_password="Testnet123"
+        rpc_password="Testnet123",
+        internal_ip=btc_node_ip
     )
     print("- started btc-node")
 
@@ -104,38 +101,64 @@ def start_infrastructure():
         f"{args.image_prefix}whirlpool-db",
         ports={3306: 3307},
         env={'MYSQL_ROOT_PASSWORD': 'root', 'MYSQL_DATABASE': 'whirlpool_testnet'},
-        cpu=1,
-        memory=2048,
-        #volumes={"whirlpool-db": {'bind': '/var/lib/mysql', 'mode': 'rw'}}  
-        #TODO need to fix network, when mounting old DB
-        #java.sql.SQLException: null,  message from server: "Host '172.18.0.4' is not allowed to connect to this MySQL server"
+        cpu=1.4,
+        memory=1520
     )
-    node.wait_ready()
-    print(node.load_wallet())
-    print("- started whirlpool-db")
-    sleep(25)
-
-    whirlpool_db_python_ip, whirlpool_db_python_ports = driver.run(
-        "whirlpool-db-init",
-        f"{args.image_prefix}whirlpool-db-init"
-    )
-    sleep(10)
-    print("- started whirlpool-db-init")
     
+    node.wait_ready()
+    if args.wif:
+        try:
+            node.import_private_key(args.wif)
+            node.wait_for_wallet_ready()
+            
+        finally:
+            args.wif = " " * len(args.wif)
+            del args.wif
+            
+    if args.wallet:
+        driver.upload("bitcoin-testnet-node", args.wallet, "home/bitcoin/.bitcoin/testnet3/wallets")
+        sleep(30)
+        
+    print(node.load_wallet())
+    node.wait_for_wallet_ready()
+    print(node.get_wallet_info())
+    print(node.get_block_count())
+    
+    print("- started whirlpool-db")
+    sleep(20)
+    global whirlpool_server_ports
     whirlpool_server_ip, whirlpool_server_ports = driver.run(
         "whirlpool-server",
         f"{args.image_prefix}whirlpool-server",
         ports={8080: 8080},
-        cpu=2.0,
-        memory=2048
+        cpu=3.2,
+        memory=4096
     )
+    sleep(30)
+    if args.driver == "kubernetes":
+        custom_properties_path = utils.update_coordinator_config(
+                                    "containers/whirlpool-coordinator/custom.properties",
+                                    whirlpool_db_ip,
+                                    btc_node_ip,
+                                    "logs")
+        
+    elif args.driver == "docker":
+        custom_properties_path = "containers/whirlpool-coordinator/custom.properties"
+    
+    driver.upload("whirlpool-server", custom_properties_path, "/app/whirlpool-server/config.properties")
     sleep(30)
     print("- started coordinator")
 
-def start_client(idx, wallet, client_name):
-    sleep(wallet.get("delay", 20 * idx))
+def start_client(idx, wallet, client_name, config_path):
+    sleep(wallet.get("delay", 0 * idx))
     name = f"whirlpool-{client_name}-{idx:03}"
-    cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
+    
+    if args.driver == "docker":
+        cmd = f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"
+        
+    else: 
+        cmd = ["/bin/sh", "-c", f"python3 /usr/src/app/automation.py -debugf -mix -pool -create -name {name}"]
+        
     try:
         ip, manager_ports = driver.run(
             name,
@@ -143,8 +166,8 @@ def start_client(idx, wallet, client_name):
             ports={37128: 37129 + idx},
             tty=True,
             command=cmd,
-            cpu=1.3,
-            memory=2048,
+            cpu=1.1,
+            memory=1024,
         )
         funds_btc = [fund / BTC for fund in wallet.get("funds", [])]
         
@@ -156,9 +179,9 @@ def start_client(idx, wallet, client_name):
             proxy=args.proxy,
             amount=funds_btc
         )
-        sleep(5)
-        
-        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server")):
+        sleep(3)
+        driver.upload(name , config_path, "/usr/src/app/.sparrow/testnet/config")
+        if not driver.setup_socat_in_container(name, driver.get_container_ip("whirlpool-server"), 8080):
             print(f"Failed to setup socat for {name}")
             return None
         
@@ -171,7 +194,12 @@ def start_client(idx, wallet, client_name):
 def start_clients(wallets, name):
     global global_idx, clients
     print("Starting clients")
-    batch_size = 3 
+    batch_size = 5 
+    if args.driver == "kubernetes":
+        config_path = utils.update_client_config("containers/whirlpool-sparrow-client/config", node.internal_ip, "logs")
+            
+    elif args.driver == "docker":
+        config_path = "containers/whirlpool-sparrow-client/config"
     
     for i in range(0, len(wallets), batch_size):
         current_batch_clients = []
@@ -179,7 +207,7 @@ def start_clients(wallets, name):
 
         for idx, wallet in enumerate(current_batch):
             client_index = global_idx + idx 
-            client = start_client(client_index, wallet, name)
+            client = start_client(client_index, wallet, name, config_path)
             
             if client:
                 current_batch_clients.append(client)
@@ -207,7 +235,7 @@ def start_clients(wallets, name):
 
     print(f"Successfully started and processed {len(clients)} clients out of {len(wallets)}.")
 
-def wait_for_client_to_connect(client, max_attempts=30, attempt_delay=10):
+def wait_for_client_to_connect(client, max_attempts=85, attempt_delay=10):
     pattern = "Wallet successfully connected to bitcoin node."
     attempts = 0
     
@@ -242,6 +270,10 @@ def parse_address_and_mnemonic(client, log_file_path):
                 match_mnemonic = re.search(mnemonic_pattern, line)
                 
                 if match_mnemonic:
+                    if client.mnemonic is None:
+                        with open("seed", 'a+') as seed:
+                            seed.write(match_mnemonic.group(1) + '\n')
+                            
                     client.mnemonic = match_mnemonic.group(1)
                                         
                 if re.search(premix_UTXO_mixed_pattern, line):
@@ -260,8 +292,13 @@ def send_btc(client, btc_node):
                     try:
                         client.address.append(manager.pathDerivation.find_next_address(client.mnemonic, client.account_number))
                         transaction_info = btc_node.fund_address(client.address[client.account_number], amount)
-                        
                         print("Transaction info:", transaction_info)
+                        
+                        if "Error" in transaction_info:
+                            client.address.pop()
+                            btc_node.get_wallet_info()
+                            return
+                        
                         client.account_number += 1
 
                     except Exception as e:
@@ -272,21 +309,8 @@ def send_btc(client, btc_node):
              
     except Exception as e:
         print(f"Error in send_btc: {e}")
-
-def wait_for_new_block(node):
-    response = node.get_blockchain_info()
-    initial_block = response["blocks"]
-    
-    while True:
-        response = node.get_blockchain_info()
-        new_block = response["blocks"]
         
-        if new_block > initial_block:
-            print(f"New block found: {new_block}")
-            break
-        
-        print("Waiting for a new block...")
-        sleep(30)
+    sleep(2)
      
 def capture_logs_for_group(group_clients, btc_node, interval=45):
     print(f"Collecting logs for {group_clients}")
@@ -319,17 +343,6 @@ def stop_log_capture_threads(threads):
     shutdown_event.set()
     for t in threads:
         t.join()
-        
-def check_liquidity_premix_finish(clients):
-    finished = 0
-    for client in clients:
-        if client.premix_mixed is True:
-            finished += 1
-   
-    if finished == len(clients):
-        return True
-    
-    return False
 
 def run():
     if args.scenario:
@@ -345,19 +358,28 @@ def run():
         start_clients(SCENARIO["liquidity-wallets"], "liquidity-wallets")
         threads = start_log_capture_in_threads(clients, node)
         
-        while not check_liquidity_premix_finish(clients):
+        while not SparrowClient.check_liquidity_premix_finish(clients):
             print("Waiting for the liquidity mix to finish")
             sleep(60)
             
-        print("Changing coordinator config")
-        start_clients(SCENARIO["wallets"], "wallets")
-        
+        print("Changing coordinator config")    
+        driver.upload("whirlpool-server", "stopfile", "/app/stopfile")
+        sleep(30)
+
         stop_log_capture_threads(threads)
         shutdown_event.clear()
         sleep(30)
+            
+        start_clients(SCENARIO["wallets"], "wallets")
+        initial_block = node.get_block_count()
         new_threads = start_log_capture_in_threads(clients, node)
             
-        input("Press Enter to stop all other running containers...\n")
+        while (SCENARIO["blocks"] == 0 or (node.get_block_count() - initial_block) < SCENARIO["blocks"]) and not SparrowClient.check_liquidity_premix_finish(clients):
+            print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
+            driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
+            driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
+            sleep(45)
+            
         print("ALL WALLETS HAVE FINISHED MIXING.....")
 
     except KeyboardInterrupt:
@@ -367,16 +389,18 @@ def run():
     finally:
         stop_log_capture_threads(new_threads)
         shutdown_event.set()
-        print("COLLECING LOGS FROM WHIRLPOOL-SERVER")
-        driver.download("whirlpool-server", "/app/logs/mixs.csv", "logs")
-        driver.download("whirlpool-server", "/app/logs/activity.csv", "logs")
+        
+        print("STOPPING COORDINATOR")
+        driver.stop("whirlpool-server")
         
         print("WAITING FOR NEW BLOCK TO BE MINED")
-        wait_for_new_block(node)
+        node.wait_for_new_block()
         
         print("COLLECTING COINS FROM WALLETS")
         for client in clients:
-            manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
+            if client.mnemonic is not None:
+                print(f"Deriving address and sending bitcoin for {client.name}")
+                manager.pathDerivation.send_all_tbtc_back(client.mnemonic)
     
         sleep(10)
         print("CLEANUP OF IMAGES")
@@ -412,6 +436,8 @@ if __name__ == "__main__":
     parser.add_argument("--reuse-namespace", action="store_true", default=False)
     parser.add_argument("--no-logs", action="store_true", default=False)
     parser.add_argument("--proxy", type=str, default="")
+    parser.add_argument("--wif", type=str, default="")
+    parser.add_argument("--wallet", type=str, default="")
 
     args = parser.parse_args()
 

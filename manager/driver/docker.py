@@ -41,7 +41,7 @@ class DockerDriver(Driver):
         env=None,
         ports=None,
         skip_ip=False,
-        cpu=0.6,
+        cpu=1,
         memory=800,
         volumes=None,
         tty=False,
@@ -99,13 +99,11 @@ class DockerDriver(Driver):
         fo.seek(0)
         self.client.containers.get(name).put_archive(os.path.dirname(dst_path), fo)
 
-    def setup_socat_in_container(self, container_name, coordinator_ip):
+    def setup_socat_in_container(self, container_name, coordinator_ip, coordinator_port):
         container = self.client.containers.get(container_name)
-        cmd = f"socat TCP-LISTEN:8080,fork TCP:{coordinator_ip}:8080"
+        cmd = f"socat TCP-LISTEN:8080,fork TCP:{coordinator_ip}:{coordinator_port}"
         try:
-            container.exec_run(cmd, detach=True)
-            print(f"Started socat in {container_name}.")
-            
+            container.exec_run(cmd, detach=True)            
             result = container.exec_run(["/bin/sh", "-c", "ps aux | grep socat"])
             if "TCP-LISTEN" in result.output.decode():
                 print(f"Socat is running in {container_name}.")

@@ -45,6 +45,8 @@ class KubernetesDriver(Driver):
         cpu=0.5,
         memory=1024,
         volumes=None,
+        tty=False,
+        command=None
     ):
         if ports is None:
             ports = {}
@@ -111,12 +113,13 @@ class KubernetesDriver(Driver):
                             },
                         },
                         "volumeMounts": volume_mounts,
+                        "tty": tty,
+                        "command": command,
                     }
                 ],
                 "volumes": pod_volumes,
             },
         }
-
         resp = self.client.create_namespaced_pod(
             body=pod_manifest, namespace=self.namespace
         )
@@ -255,15 +258,84 @@ class KubernetesDriver(Driver):
             print(f"An error occurred: {e}")
             return None 
         
-    def capture_and_save_logs(self, pod_name, log_file_path):
+    def setup_socat_in_container(self, pod_name, coordinator_ip, coordinator_port):
+        print(coordinator_ip,coordinator_port)
+        cmd = ["/bin/sh", "-c", f"socat TCP-LISTEN:8080,fork TCP:{coordinator_ip}:{coordinator_port}"]
         try:
-            logs = self.client.read_namespaced_pod_log(name=pod_name, namespace=self._namespace)
+            resp = stream(
+                self.client.connect_get_namespaced_pod_exec,
+                name=pod_name,
+                namespace=self.namespace,
+                command=cmd,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _preload_content=False,
+            )
+            sleep(2)
+            start_time = time()
+            timeout_seconds = 10
+            while time() - start_time < timeout_seconds:
+                if self.check_socat_running(pod_name):
+                    resp.close() 
+                    return True
+                
+                sleep(2)
+                
+            else:
+                print(f"Timeout waiting for socat to start in {pod_name}.")
+
+            resp.close() 
+            return False
+
+        except Exception as e:
+            print(f"Exception setting up socat in pod {pod_name}: {e}")
+        
+    def check_socat_running(self, pod_name):
+        check_cmd = ["/bin/sh", "-c", "ps aux | grep socat | grep -v grep"]
+        try:
+            resp = stream(self.client.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace=self.namespace,
+                        command=check_cmd,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False,
+                        _preload_content=False)
+
+            stdout = ""
+            while resp.is_open():
+                resp.update(timeout=1)
+                if resp.peek_stdout():
+                    stdout += resp.read_stdout()
+                if resp.peek_stderr():
+                    print(f"STDERR: {resp.read_stderr()}")
+
+            resp.close()
+            
+            if "TCP-LISTEN" in stdout:
+                print(f"Socat is running in {pod_name}.")
+                return True
+            
+            else:
+                print(f"Failed to start socat in {pod_name}.")
+                return False
+
+        except Exception as e:
+            print(f"Exception while checking if socat is running in pod {pod_name}: {e}")
+            return False
+        
+    def capture_and_save_logs(self, pod, log_file_path):
+        try:
+            logs = self.client.read_namespaced_pod_log(pod.name, namespace=self._namespace)
             with open(log_file_path, "w") as log_file:
                 log_file.write(logs)
-            print(f"Captured and saved logs for {pod_name} to {log_file_path}")
+            print(f"Captured and saved logs for {pod.name} to {log_file_path}")
             
         except Exception as e:
-            print(f"Failed to capture and save logs for {pod_name}: {e}")
+            print(f"Failed to capture and save logs for {pod.name}: {e}")
 
     def create_persistent_volume_claim(self, pvc_name, storage_size, storage_class="standard"):
         pvc_manifest = {
@@ -289,7 +361,7 @@ class KubernetesDriver(Driver):
         for pod in pods.items:
             if any(
                 x in pod.metadata.name
-                for x in ("btc-node", "wasabi-backend", "wasabi-client")
+                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "wallets")
             ):
                 self.client.delete_namespaced_pod(
                     name=pod.metadata.name, namespace=self._namespace
@@ -298,7 +370,7 @@ class KubernetesDriver(Driver):
         for service in services.items:
             if any(
                 x in service.metadata.name
-                for x in ("btc-node", "wasabi-backend", "wasabi-client")
+                for x in ("bitcoin-testnet-node", "whirlpool-db", "whirlpool-server", "wallets")
             ):
                 self.client.delete_namespaced_service(
                     name=service.metadata.name, namespace=self._namespace
