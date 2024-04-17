@@ -97,13 +97,19 @@ def parse_address(input_file):
 def check_for_UTXO(file_path):
     UTXO_counter = 0
     pattern = r'^.*?(Unconfirmed|\d{4}-\d{2}-\d{2} \d{2}:\d{2}).*?$'
+    finished_mixing = False
 
     try:
         with open(file_path, 'r') as file:
             for line in file:
                 if re.search(pattern, line):
+                    balance = [part.strip() for part in line.split() if part.strip() and not part.startswith('│')]
+                    
+                    if int(balance[-1].replace(',', '')) == 0:
+                        finished_mixing = True
+                        
                     UTXO_counter += 1
-        return UTXO_counter
+        return UTXO_counter, finished_mixing
     
     except FileNotFoundError:
         print(f"File not found: {file_path}")
@@ -134,3 +140,22 @@ def retry_if_not_connected(session_name, pane_id, file_path, options):
             print(f"An error occurred: {e}")
             
     return 1
+
+"""
+file_path = "transaction.txt"
+result = check_for_UTXO(file_path)
+print("Count of Positive Transaction Values:", result)
+
+file_path_2 = "transaction2.txt"
+result_2 = check_for_UTXO(file_path_2)
+print("Count of Positive Transaction Values:", result_2)
+
+file_path_3 = "utxo.txt"
+result_3 = check_for_UTXO(file_path_3)
+print("Count of Positive Transaction Values:", result_3)
+
+file_path_4 = "utxo2.txt"
+result_4 = check_for_UTXO(file_path_4)
+print("Count of Positive Transaction Values:", result_4)
+
+"""

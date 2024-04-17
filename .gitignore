@@ -6,3 +6,5 @@ containers/bitcoin-testnet-node/testnet3
 containers/bitcoin-testnet-node/wallets/wallet/*
 containers/whirlpool-sparrow-client/transaction.txt
 containers/whirlpool-sparrow-client/utxo.txt
+containers/whirlpool-sparrow-client/transaction2.txt
+containers/whirlpool-sparrow-client/utxo2.txt
