@@ -52,10 +52,10 @@ class BtcNode:
             print(f"Failed to get UTXOs for {addresses} or no UTXOs found.")
             return []
 
-    def fund_address(self, address, amount):
+    def fund_address(self, address, amount, conf_target=1, estimate_mode='ECONOMICAL'):
         request = {
             "method": "sendtoaddress",
-            "params": [address, amount],
+            "params": [address, amount, "", "", False, False, conf_target, estimate_mode],
         }
         return self._rpc(request, WALLET)
     

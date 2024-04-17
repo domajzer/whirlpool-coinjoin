@@ -284,25 +284,23 @@ def parse_address_and_mnemonic(client, log_file_path):
     
     return client.premix_mixed
     
-def send_btc(client, btc_node):
+def send_btc(client, btc_node, conf_target=1, estimate_mode='ECONOMICAL'):
     try:
         if client.amount and (len(client.amount) != client.account_number) and (client.mnemonic is not None):
             for amount in client.amount:
                 if amount > 0:
                     try:
                         client.address.append(manager.pathDerivation.find_next_address(client.mnemonic, client.account_number))
-                        transaction_info = btc_node.fund_address(client.address[client.account_number], amount)
+                        transaction_info = btc_node.fund_address(client.address[client.account_number], amount, conf_target, estimate_mode)
                         print("Transaction info:", transaction_info)
-                        
-                        if "Error" in transaction_info:
-                            client.address.pop()
-                            btc_node.get_wallet_info()
-                            return
-                        
                         client.account_number += 1
 
                     except Exception as e:
-                        print(f"Error sending BTC to {client.address}: {e}")
+                        error_message = str(e)
+                        print(f"Error sending BTC to {client.address[client.account_number]}: {error_message}")
+                        client.address.pop()
+                        wallet_info = btc_node.get_wallet_info()
+                        print("Wallet info:", wallet_info)
                                                 
                 else:
                     raise ValueError(f"Error sending BTC to {client.address}: Not valid amount: {amount}")

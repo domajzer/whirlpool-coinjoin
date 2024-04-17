@@ -71,7 +71,8 @@ def check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, cou
                     return 0
 
                 elif "Unconfirmed" in content:
-                    for _ in range(1200):
+                    for i in range(2400):
+                        print(i)
                         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
                         with open(file_path, 'r') as file:
@@ -126,7 +127,7 @@ def add_to_pool(tmux_session_name, options, file_path, mix_type):
 
     sleep(1.5)
     
-    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 2500)
+    is_defined = check_for_init_UTXO(tmux_session_name, file_path, options, date_pattern, 5000)
     if is_defined:
         print("\033[31mDate pattern not found in content.\033[0m")
         return 2
@@ -201,7 +202,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
     if (start_UTXO == 0): #If there was a problem with loading UTXO
         utility.send_keystroke_to_tmux(tmux_session_name, refresh_mixing_keystrokes, options)
         
-        sleep(45)
+        sleep(60)
         utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
 
         start_UTXO, finised_mix = utility.check_for_UTXO('output.txt')
@@ -209,7 +210,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         while (start_UTXO == 0):  
             utility.send_keystroke_to_tmux(tmux_session_name, ['Enter'], options)
             utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
-            sleep(45)   
+            sleep(60)   
             utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options) 
             start_UTXO, finised_mix = utility.check_for_UTXO('output.txt')
             
@@ -252,7 +253,7 @@ def start_mix(tmux_session_name, options, pp): #pp_variable = Premix/Postmix var
         with open('output.txt', 'r') as file:
             content = file.read()
             if "Stop Mixing" not in content:
-                for _ in range(20):
+                for _ in range(50):
                     print("Checking if mixing started")
                     utility.capture_and_print_tmux_screen('sparrow_wallet', '0', 'output.txt', options)
                         
