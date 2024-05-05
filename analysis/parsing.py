@@ -3,7 +3,9 @@ import requests
 import mix as MixingClass
 import user as UserClass
 from itertools import product
-import boltzmann
+from boltzmann.linker.txos_linker import TxosLinker
+import requests
+import transaction as TxoClass
 
 column_names_mix = [
     "ID", "Time_Start", "Time_End", "BTC_Amount", "Transaction_ID",
@@ -15,24 +17,32 @@ column_names_activity = [
     "Date",	"Activity",	"PoolSize",	"TransactionID", "Details", "IP", "ClientDetails"
 ]
 
-import requests
-
 def get_transaction_details(txid):
+
     url = f"https://mempool.space/testnet/api/tx/{txid}"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-        inputs = [inp.get('prevout', {}).get('scriptpubkey_address') 
-                  for inp in data.get('vin', []) if inp.get('prevout') and inp.get('prevout').get('scriptpubkey_address')]
+        inputs = [
+            TxoClass.TxO(address=inp.get('prevout', {}).get('scriptpubkey_address'), 
+                value=inp.get('prevout', {}).get('value'), 
+                inputVal=True)
+            for inp in data.get('vin', []) if inp.get('prevout')
+        ]
+
+        outputs = [
+            TxoClass.TxO(address=out.get('scriptpubkey_address'), 
+                value=out.get('value'), 
+                inputVal=False)
+            for out in data.get('vout', []) if out.get('scriptpubkey_address')
+        ]
         
-        outputs = [out.get('scriptpubkey_address') 
-                   for out in data.get('vout', []) if out.get('scriptpubkey_address')]
-        
-        return inputs, outputs
+        fees = data.get('fee', 0)
+        return inputs, outputs, fees
     
     else:
         print(f"Failed to fetch data for transaction {txid}: {response.status_code}")
-        return [], []
+        return [], [], 0
 
 def initiate_mixClass(mixs, mix_dic):
     for _, row in mixs.iterrows():
@@ -41,8 +51,8 @@ def initiate_mixClass(mixs, mix_dic):
         premixSet = row["Premix"]
         postmixSet = row["PostMix"]
         
-        inputs, outputs = get_transaction_details(tx_id)
-        mix = MixingClass.Mix(inputs=inputs, outputs=outputs, transactionID=tx_id, anonSet=anonSet, premixSet=premixSet, postmixSet=postmixSet)
+        inputs, outputs, fees = get_transaction_details(tx_id)
+        mix = MixingClass.Mix(inputs=inputs, outputs=outputs, transactionID=tx_id, anonSet=anonSet, premixSet=premixSet, postmixSet=postmixSet, fees=fees)
         mix_dic[tx_id] = mix 
 
 def create_user_wallets(activity, user_wallets):
@@ -75,6 +85,11 @@ def main():
     initiate_mixClass(mixs, mix_dic)
     create_user_wallets(activity, user_dic)
 
+    #for tx_id, mix in mix_dic.items():
+        #input_addresses = ", ".join([inp.address for inp in mix.inputs])
+        #output_addresses = ", ".join([out.address for out in mix.outputs])
+        #print(f"Transaction ID: {tx_id}, AnonSet: {mix.anonSet}, PremixSet: {mix.premixSet}, PostmixSet: {mix.postmixSet}, Inputs: {input_addresses}, Outputs: {output_addresses}")
+
     for user in user_dic.values():
         for txid in user.transaction_path:
             txid_split = txid.split(':')
@@ -100,18 +115,19 @@ def main():
     
     for mix, user in product(mix_dic.values(), user_dic.values()):
         for mix_input, user_input in product(mix.inputs, user.inputs):
-            if mix_input == user_input:
+            if mix_input.address == user_input:
                 mix.input_pair.append([mix.transactionID, mix_input, user.ip])
                 mix.mix_ips.append(user.ip)
-       #print(mix.input_pair)
-    
+        #for pair in mix.input_pair:
+            #print(f"Transaction ID: {pair[0]}, Input: {pair[1]}, User IP: {pair[2]}")
+
     for mix in mix_dic.values():
         for user in user_dic.values():
             
             if user.ip in mix.mix_ips:
                 for mix_output in mix.outputs:
                     for user_input in user.inputs:
-                        if mix_output == user_input:
+                        if mix_output.address == user_input:
                             mix.output_pair.append([mix.transactionID, mix_output, user.ip])
     
     for mix in mix_dic.values():
@@ -121,28 +137,42 @@ def main():
                     mix.pairs[input[2]] = {input[1]:output[1]}
                     #print(input[0], input[1], output[1], input[2], output[2])
         #print(mix.pairs)
-        
+    linked_txos = []  
+
     for mix in mix_dic.values():
         print(f"MixID= {mix.transactionID}")
         print(f"Expected AnonSet= {mix.anonSet} Real AnonSet= {(len(mix.inputs) - len(mix.pairs))}/{mix.anonSet}")
-        
+
+        current_linked_set = set()
         for ip, address_dict in mix.pairs.items():
             if address_dict: 
                 for input_address, output_address in address_dict.items():
-                    print(f"IP:{ip}, Input address= {input_address}, Output address= {output_address}")
-                    
+                    print(f"IP:{ip}, Input address= {input_address.address}, Output address= {output_address.address}")
+                    current_linked_set.update([input_address.address, output_address.address])
             else:
                 print(ip, "No values available")
 
-        #print(mix.input_pair)
-        #print(mix.output_pair)
-        #for pair_input in mix.input_pair:
-            #for pair_output in mix.output_pair:
-                
+        if current_linked_set:
+            linked_txos.append(current_linked_set)
+        #print(linked_txos)
 
-    #for tx_id, mix in mix_dic.items():
-        #print(f"Transaction ID: {tx_id}, AnonSet: {mix.anonSet}, PremixSet: {mix.premixSet}, PostmixSet: {mix.postmixSet}, Inputs: {mix.inputs}, Outputs: {mix.outputs}")
+        extracted_inputs = [(txo.address, txo.value) for txo in mix.inputs]
+        extracted_outputs = [(txo.address, txo.value) for txo in mix.outputs]
+        #print(extracted_inputs, extracted_outputs)
 
+        linker = TxosLinker(inputs=extracted_inputs, outputs=extracted_outputs, fees=mix.fees)
+        linkability_matrix, num_combinations, sorted_inputs, sorted_outputs = linker.process(
+            linked_txos=linked_txos, 
+            options=[TxosLinker.LINKABILITY, TxosLinker.MERGE_FEES]
+        )
+        
+        print("Linkability Matrix:\n", linkability_matrix)
+        print("Number of Combinations:", num_combinations)
+        print("Sorted Inputs:", sorted_inputs)
+        print("Sorted Outputs:", sorted_outputs)
+        print("--------------------------------------------------------------------------------")
+        
+        linked_txos = []
 
 if __name__ == "__main__":
     main()
