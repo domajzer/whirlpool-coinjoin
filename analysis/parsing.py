@@ -73,6 +73,16 @@ def find_pool_size(poolsize):
     
     return first_full_entry.removesuffix("btc")
 
+def transform_txo_data(txo_list):
+    return [(txo.address, txo.value) for txo in txo_list]
+
+def print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_outputs):
+    print("Linkability Matrix:\n", linkability_matrix)
+    print("Number of Combinations:", num_combinations)
+    print("Sorted Inputs:", sorted_inputs)
+    print("Sorted Outputs:", sorted_outputs)
+    print("--------------------------------------------------------------------------------")
+
 def main():
     mix_dic = {}
     user_dic = {}
@@ -142,6 +152,7 @@ def main():
     for mix in mix_dic.values():
         print(f"MixID= {mix.transactionID}")
         print(f"Expected AnonSet= {mix.anonSet} Real AnonSet= {(len(mix.inputs) - len(mix.pairs))}/{mix.anonSet}")
+        print(f"Premix= {mix.premixSet} Postmix= {mix.postmixSet}")
 
         current_linked_set = set()
         for ip, address_dict in mix.pairs.items():
@@ -154,25 +165,17 @@ def main():
 
         if current_linked_set:
             linked_txos.append(current_linked_set)
-        #print(linked_txos)
 
-        extracted_inputs = [(txo.address, txo.value) for txo in mix.inputs]
-        extracted_outputs = [(txo.address, txo.value) for txo in mix.outputs]
-        #print(extracted_inputs, extracted_outputs)
-
+        extracted_inputs, extracted_outputs = transform_txo_data(mix.inputs), transform_txo_data(mix.outputs)
+        
         linker = TxosLinker(inputs=extracted_inputs, outputs=extracted_outputs, fees=mix.fees)
         linkability_matrix, num_combinations, sorted_inputs, sorted_outputs = linker.process(
             linked_txos=linked_txos, 
-            options=[TxosLinker.LINKABILITY, TxosLinker.MERGE_FEES]
+            options=[TxosLinker.LINKABILITY, TxosLinker.PRECHECK]
         )
         
-        print("Linkability Matrix:\n", linkability_matrix)
-        print("Number of Combinations:", num_combinations)
-        print("Sorted Inputs:", sorted_inputs)
-        print("Sorted Outputs:", sorted_outputs)
-        print("--------------------------------------------------------------------------------")
-        
-        linked_txos = []
+        print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_outputs)
+        linked_txos = [] #If each transaction should be evaluated solo. Removed or commented will create an enviroemtn where all input/outputs are saved.
 
 if __name__ == "__main__":
     main()
