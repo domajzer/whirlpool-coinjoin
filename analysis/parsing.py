@@ -21,28 +21,27 @@ def get_transaction_details(txid):
 
     url = f"https://mempool.space/testnet/api/tx/{txid}"
     response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        inputs = [
-            TxoClass.TxO(address=inp.get('prevout', {}).get('scriptpubkey_address'), 
-                value=inp.get('prevout', {}).get('value'), 
-                inputVal=True)
-            for inp in data.get('vin', []) if inp.get('prevout')
-        ]
-
-        outputs = [
-            TxoClass.TxO(address=out.get('scriptpubkey_address'), 
-                value=out.get('value'), 
-                inputVal=False)
-            for out in data.get('vout', []) if out.get('scriptpubkey_address')
-        ]
-        
-        fees = data.get('fee', 0)
-        return inputs, outputs, fees
-    
-    else:
+    if response.status_code != 200:
         print(f"Failed to fetch data for transaction {txid}: {response.status_code}")
         return [], [], 0
+    
+    data = response.json()
+    inputs = [
+        TxoClass.TxO(address=inp.get('prevout', {}).get('scriptpubkey_address'), 
+            value=inp.get('prevout', {}).get('value'), 
+            inputVal=True)
+        for inp in data.get('vin', []) if inp.get('prevout')
+    ]
+
+    outputs = [
+        TxoClass.TxO(address=out.get('scriptpubkey_address'), 
+            value=out.get('value'), 
+            inputVal=False)
+        for out in data.get('vout', []) if out.get('scriptpubkey_address')
+    ]
+    
+    fees = data.get('fee', 0)
+    return inputs, outputs, fees
 
 def initiate_mixClass(mixs, mix_dic):
     for _, row in mixs.iterrows():
@@ -55,17 +54,13 @@ def initiate_mixClass(mixs, mix_dic):
         mix = MixingClass.Mix(inputs=inputs, outputs=outputs, transactionID=tx_id, anonSet=anonSet, premixSet=premixSet, postmixSet=postmixSet, fees=fees)
         mix_dic[tx_id] = mix 
 
-def create_user_wallets(activity, user_wallets):
+def create_user_wallets(activity, user_dic):
     unique_ips = activity['IP'].unique()
 
     for ip in unique_ips:
         transactions = activity[activity['IP'] == ip]['TransactionID'].unique()
         cleaned_transactions = [tx for tx in transactions if tx is not None and tx == tx]
-        wallet = UserClass.UserWallet(transaction_path=list(cleaned_transactions), ip=ip)
-        user_wallets[ip] = wallet
-
-    #for wallet in user_wallets.values():
-    #    print(wallet.ip, wallet.input_path)
+        user_dic[ip] = UserClass.UserWallet(transaction_path=cleaned_transactions, ip=ip)
             
 def find_pool_size(poolsize):
     filtered_activity = poolsize.dropna(subset=['PoolSize'])
@@ -75,6 +70,27 @@ def find_pool_size(poolsize):
 
 def transform_txo_data(txo_list):
     return [(txo.address, txo.value) for txo in txo_list]
+
+def link_user_inputs_to_mix(mix_dic, user_dic):
+    for mix, user in product(mix_dic.values(), user_dic.values()):
+        for mix_input, user_input in product(mix.inputs, user.inputs):
+            if mix_input.address == user_input:
+                mix.input_pair.append([mix.transactionID, mix_input, user.ip])
+                mix.mix_ips.append(user.ip)
+
+def find_output_pairs(mix_dic, user_dic):
+    for mix, user in product(mix_dic.values(), user_dic.values()):
+        if user.ip in mix.mix_ips:
+            for mix_output in mix.outputs:
+                for user_input in user.inputs:
+                    if mix_output.address == user_input:
+                        mix.output_pair.append([mix.transactionID, mix_output, user.ip])
+
+def link_input_to_output(mix_dic):
+    for mix in mix_dic.values():
+        for input, output in product(mix.input_pair, mix.output_pair):
+            if input[0] == output[0] and input[2] == output[2]:
+                mix.pairs[input[2]] = {input[1]: output[1]}
 
 def print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_outputs):
     print("Linkability Matrix:\n", linkability_matrix)
@@ -94,12 +110,7 @@ def main():
     
     initiate_mixClass(mixs, mix_dic)
     create_user_wallets(activity, user_dic)
-
-    #for tx_id, mix in mix_dic.items():
-        #input_addresses = ", ".join([inp.address for inp in mix.inputs])
-        #output_addresses = ", ".join([out.address for out in mix.outputs])
-        #print(f"Transaction ID: {tx_id}, AnonSet: {mix.anonSet}, PremixSet: {mix.premixSet}, PostmixSet: {mix.postmixSet}, Inputs: {input_addresses}, Outputs: {output_addresses}")
-
+    
     for user in user_dic.values():
         for txid in user.transaction_path:
             txid_split = txid.split(':')
@@ -123,30 +134,10 @@ def main():
                 user.adresses_pairs[txid] = address
                 #print(txid, address)
     
-    for mix, user in product(mix_dic.values(), user_dic.values()):
-        for mix_input, user_input in product(mix.inputs, user.inputs):
-            if mix_input.address == user_input:
-                mix.input_pair.append([mix.transactionID, mix_input, user.ip])
-                mix.mix_ips.append(user.ip)
-        #for pair in mix.input_pair:
-            #print(f"Transaction ID: {pair[0]}, Input: {pair[1]}, User IP: {pair[2]}")
+    link_user_inputs_to_mix(mix_dic, user_dic)
+    find_output_pairs(mix_dic, user_dic)
+    link_input_to_output(mix_dic)
 
-    for mix in mix_dic.values():
-        for user in user_dic.values():
-            
-            if user.ip in mix.mix_ips:
-                for mix_output in mix.outputs:
-                    for user_input in user.inputs:
-                        if mix_output.address == user_input:
-                            mix.output_pair.append([mix.transactionID, mix_output, user.ip])
-    
-    for mix in mix_dic.values():
-        for input in mix.input_pair:
-            for output in mix.output_pair:
-                if input[0] == output[0] and input[2] == output[2]:
-                    mix.pairs[input[2]] = {input[1]:output[1]}
-                    #print(input[0], input[1], output[1], input[2], output[2])
-        #print(mix.pairs)
     linked_txos = []  
 
     for mix in mix_dic.values():
