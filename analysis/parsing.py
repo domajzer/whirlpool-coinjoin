@@ -6,6 +6,7 @@ from itertools import product
 from boltzmann.linker.txos_linker import TxosLinker
 import requests
 import transaction as TxoClass
+import time
 
 column_names_mix = [
     "ID", "Time_Start", "Time_End", "BTC_Amount", "Transaction_ID",
@@ -49,10 +50,14 @@ def initiate_mixClass(mixs, mix_dic):
         anonSet = row["AnonSet"]
         premixSet = row["Premix"]
         postmixSet = row["PostMix"]
+        status = row["Status"]
         
-        inputs, outputs, fees = get_transaction_details(tx_id)
-        mix = MixingClass.Mix(inputs=inputs, outputs=outputs, transactionID=tx_id, anonSet=anonSet, premixSet=premixSet, postmixSet=postmixSet, fees=fees)
-        mix_dic[tx_id] = mix 
+        if status != "FAIL":
+            inputs, outputs, fees = get_transaction_details(tx_id)
+            mix = MixingClass.Mix(inputs=inputs, outputs=outputs, transactionID=tx_id, anonSet=anonSet, premixSet=premixSet, postmixSet=postmixSet, fees=fees)
+            mix_dic[tx_id] = mix 
+        time.sleep(0.5)
+
 
 def create_user_wallets(activity, user_dic):
     unique_ips = activity['IP'].unique()
@@ -103,7 +108,7 @@ def main():
     mix_dic = {}
     user_dic = {}
     index = -1
-    mixs = pd.read_csv('mixs.csv', header=0, names=column_names_mix, usecols=["AnonSet", "Premix", "PostMix", "Raw_Transaction"])
+    mixs = pd.read_csv('mixs.csv', header=0, names=column_names_mix, usecols=["AnonSet", "Premix", "PostMix", "Raw_Transaction", "Status"])
     activity = pd.read_csv('activity.csv', header=0, names=column_names_activity, usecols=["TransactionID", "Details", "IP"])
     poolsize = pd.read_csv('activity.csv', header=0, names=column_names_activity, usecols=["PoolSize"])
     poolsize = find_pool_size(poolsize)
@@ -133,26 +138,41 @@ def main():
                 user.inputs.append(address)
                 user.adresses_pairs[txid] = address
                 #print(txid, address)
+            time.sleep(0.5)
     
     link_user_inputs_to_mix(mix_dic, user_dic)
     find_output_pairs(mix_dic, user_dic)
     link_input_to_output(mix_dic)
 
     linked_txos = []  
-
+    anon_set_count = {}
+    overall_success = []
+    success_over_time = []
+    
     for mix in mix_dic.values():
-        print(f"MixID= {mix.transactionID}")
-        print(f"Expected AnonSet= {mix.anonSet} Real AnonSet= {(len(mix.inputs) - len(mix.pairs))}/{mix.anonSet}")
-        print(f"Premix= {mix.premixSet} Postmix= {mix.postmixSet}")
-
+            
+        real_anon_set = len(mix.inputs) - len(mix.pairs)
+        anon_set_ratio = f"{real_anon_set}/{mix.anonSet}"
+        
+        if anon_set_ratio in anon_set_count:
+            anon_set_count[anon_set_ratio] += 1
+        else:
+            anon_set_count[anon_set_ratio] = 1
+            
+        overall_success.append({
+            "TransactionID": mix.transactionID,
+            "ExpectedAnonSet": mix.anonSet,
+            "RealAnonSet": real_anon_set,
+            "AnonSetRatio": anon_set_ratio,
+            "Premix": mix.premixSet,
+            "Postmix": mix.postmixSet
+        })
+        
         current_linked_set = set()
         for ip, address_dict in mix.pairs.items():
             if address_dict: 
                 for input_address, output_address in address_dict.items():
-                    print(f"IP:{ip}, Input address= {input_address.address}, Output address= {output_address.address}")
                     current_linked_set.update([input_address.address, output_address.address])
-            else:
-                print(ip, "No values available")
 
         if current_linked_set:
             linked_txos.append(current_linked_set)
@@ -165,8 +185,30 @@ def main():
             options=[TxosLinker.LINKABILITY, TxosLinker.PRECHECK]
         )
         
+        success_over_time.append({
+            "TransactionID": mix.transactionID,
+            "LinkabilityMatrix": linkability_matrix,
+            "NumCombinations": num_combinations,
+            "SortedInputs": sorted_inputs,
+            "SortedOutputs": sorted_outputs
+        })
+        
         print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_outputs)
-        linked_txos = [] #If each transaction should be evaluated solo. Removed or commented will create an enviroemtn where all input/outputs are saved.
+        linked_txos = [] 
+
+    for ratio, count in anon_set_count.items():
+        print(f"{ratio}: {count}")
+
+    overall_success_df = pd.DataFrame(overall_success)
+    success_over_time_df = pd.DataFrame(success_over_time)
+    
+    overall_success_df = overall_success_df[overall_success_df["ExpectedAnonSet"] == 5]
+    success_over_time_df = success_over_time_df[success_over_time_df["TransactionID"].isin(overall_success_df["TransactionID"])]
+    
+    with pd.ExcelWriter('analysis_results.xlsx') as writer:
+        overall_success_df.to_excel(writer, sheet_name='OverallSuccess', index=False)
+        success_over_time_df.to_excel(writer, sheet_name='SuccessOverTime', index=False)
+
 
 if __name__ == "__main__":
     main()
