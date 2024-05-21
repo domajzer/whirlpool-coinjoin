@@ -86,6 +86,7 @@ def create_and_broadcast_tx(private_key_hex, sender_address, recipient_address, 
     if attempt == max_attempts:
         print("Max attempts reached. Transaction not sent.")
         return None 
+        
 def open_seed_and_sendtbtc():
     with open("seed", 'r') as file:
         for line in file:

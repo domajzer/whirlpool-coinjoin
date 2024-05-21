@@ -1,6 +1,6 @@
 # CoinJoin simulation setup
 
-A container-based setup for simulating CoinJoins on RegTest network.
+A container-based setup for simulating CoinJoins on Testnet network.
 
 ## Usage
 
