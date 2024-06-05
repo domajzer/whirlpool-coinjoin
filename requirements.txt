@@ -2,4 +2,4 @@ requests==2.31
 docker==6.1
 cryptos==2.0.9
 git+https://github.com/mcdallas/cryptotools.git@master#egg=cryptotools
-pymysql==1.1.0
+pymysql==1.1.1
