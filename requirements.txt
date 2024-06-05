@@ -1,4 +1,4 @@
-requests==2.31
+requests==2.32.2
 docker==6.1
 cryptos==2.0.9
 git+https://github.com/mcdallas/cryptotools.git@master#egg=cryptotools
