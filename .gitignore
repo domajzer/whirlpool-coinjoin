@@ -10,3 +10,7 @@ containers/whirlpool-sparrow-client/transaction2.txt
 containers/whirlpool-sparrow-client/utxo2.txt
 analysis/activity.csv
 analysis/mixs.csv
+analysis/test.py
+analysis/test2.py
+analysis_results.xlsx
+analysis/analysis_results.xlsx

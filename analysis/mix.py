@@ -12,3 +12,9 @@ class Mix:
         self.postmixSet = postmixSet
         self.fees = fees
     
+    def __str__(self):
+        inputs_str = ", ".join(str(input) for input in self.inputs)
+        outputs_str = ", ".join(str(output) for output in self.outputs)
+        return (f"Mix(transactionID={self.transactionID}, anonSet={self.anonSet}, premixSet={self.premixSet}, "
+                f"postmixSet={self.postmixSet}, fees={self.fees}, inputs=[{inputs_str}], input_pair={self.input_pair}, "
+                f"mix_ips={self.mix_ips}, outputs=[{outputs_str}], output_pair={self.output_pair}, pairs={self.pairs}) \n")

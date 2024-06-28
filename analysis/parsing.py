@@ -65,7 +65,7 @@ def create_user_wallets(activity, user_dic):
     for ip in unique_ips:
         transactions = activity[activity['IP'] == ip]['TransactionID'].unique()
         cleaned_transactions = [tx for tx in transactions if tx is not None and tx == tx]
-        user_dic[ip] = UserClass.UserWallet(transaction_path=cleaned_transactions, ip=ip)
+        user_dic[ip] = UserClass.UserWallet(transaction_ID=cleaned_transactions, ip=ip)
             
 def find_pool_size(poolsize):
     filtered_activity = poolsize.dropna(subset=['PoolSize'])
@@ -104,6 +104,35 @@ def print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_o
     print("Sorted Outputs:", sorted_outputs)
     print("--------------------------------------------------------------------------------")
 
+def process_user_inputs(user_dic):
+    for user in user_dic.values():
+        temp_inputs = user.inputs
+        used_inputs = []
+        
+        for place in range(len(temp_inputs)):
+            if temp_inputs[place] not in used_inputs:
+                first_node = temp_inputs[place]
+                path = [] 
+
+                current_node = first_node
+                while current_node in user.pairs:
+                    next_node = user.pairs[current_node]
+                    path.append(next_node)
+                    used_inputs.append(current_node)  
+                    current_node = next_node
+                
+                if path:
+                    user.txo_path.append({first_node: path})
+        
+    print(user.txo_path)
+
+def print_path(user_dic):
+    for user in user_dic.values():
+        for transaction_zero in user.txo_path:
+            for first_node, addresses in transaction_zero.items():
+                result = " -> ".join(addresses)
+                print(f"UserIP={user.ip}: {first_node} -> {result}\n")
+            
 def main():
     mix_dic = {}
     user_dic = {}
@@ -111,20 +140,19 @@ def main():
     mixs = pd.read_csv('mixs.csv', header=0, names=column_names_mix, usecols=["AnonSet", "Premix", "PostMix", "Raw_Transaction", "Status"])
     activity = pd.read_csv('activity.csv', header=0, names=column_names_activity, usecols=["TransactionID", "Details", "IP"])
     poolsize = pd.read_csv('activity.csv', header=0, names=column_names_activity, usecols=["PoolSize"])
+
     poolsize = find_pool_size(poolsize)
     
     initiate_mixClass(mixs, mix_dic)
     create_user_wallets(activity, user_dic)
-    
     for user in user_dic.values():
-        for txid in user.transaction_path:
+        for txid in user.transaction_ID:
             txid_split = txid.split(':')
             txid_split, numbers = txid_split[0],txid_split[1]
         
             url = f"https://mempool.space/testnet/api/tx/{txid_split}#vout={numbers}"
             response = requests.get(url)
             transaction_data = response.json()
-            #print(transaction_data)
             
             for output in transaction_data['vout']:
                 if output['scriptpubkey_type'] == "op_return":
@@ -132,12 +160,10 @@ def main():
 
             if len(transaction_data['vout']) >= int(numbers):
                 third_output = transaction_data['vout'][int(numbers) + index]
-                #print(third_output)
                 address = third_output.get('scriptpubkey_address') 
                 
                 user.inputs.append(address)
                 user.adresses_pairs[txid] = address
-                #print(txid, address)
             time.sleep(0.5)
     
     link_user_inputs_to_mix(mix_dic, user_dic)
@@ -150,6 +176,19 @@ def main():
     success_over_time = []
     
     for mix in mix_dic.values():
+        current_linked_set = set()
+        for ip, address_dict in mix.pairs.items():
+            if address_dict: 
+                for input_address, output_address in address_dict.items():
+                    current_linked_set.update([input_address.address, output_address.address])
+            print(ip)
+            for user in user_dic.values():
+                if user.ip == ip:
+                    user.pairs[input_address.address] = output_address.address
+                    print(f"Added pair for user {user.ip}: {input_address.address} -> {output_address.address}\n")
+ 
+        if current_linked_set:
+            linked_txos.append(current_linked_set)
             
         real_anon_set = len(mix.inputs) - len(mix.pairs)
         anon_set_ratio = f"{real_anon_set}/{mix.anonSet}"
@@ -167,18 +206,9 @@ def main():
             "Premix": mix.premixSet,
             "Postmix": mix.postmixSet
         })
-        
-        current_linked_set = set()
-        for ip, address_dict in mix.pairs.items():
-            if address_dict: 
-                for input_address, output_address in address_dict.items():
-                    current_linked_set.update([input_address.address, output_address.address])
-
-        if current_linked_set:
-            linked_txos.append(current_linked_set)
 
         extracted_inputs, extracted_outputs = transform_txo_data(mix.inputs), transform_txo_data(mix.outputs)
-        
+            
         linker = TxosLinker(inputs=extracted_inputs, outputs=extracted_outputs, fees=mix.fees)
         linkability_matrix, num_combinations, sorted_inputs, sorted_outputs = linker.process(
             linked_txos=linked_txos, 
@@ -193,8 +223,11 @@ def main():
             "SortedOutputs": sorted_outputs
         })
         
-        print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_outputs)
+        print_analysis(linkability_matrix, num_combinations)
         linked_txos = [] 
+        
+    process_user_inputs(user_dic)
+    print_path(user_dic)
 
     for ratio, count in anon_set_count.items():
         print(f"{ratio}: {count}")
