@@ -58,7 +58,6 @@ def initiate_mixClass(mixs, mix_dic):
             mix_dic[tx_id] = mix 
         time.sleep(0.5)
 
-
 def create_user_wallets(activity, user_dic):
     unique_ips = activity['IP'].unique()
 
@@ -97,12 +96,47 @@ def link_input_to_output(mix_dic):
             if input[0] == output[0] and input[2] == output[2]:
                 mix.pairs[input[2]] = {input[1]: output[1]}
 
-def print_analysis(linkability_matrix, num_combinations, sorted_inputs, sorted_outputs):
+def print_analysis(linkability_matrix, num_combinations, sorted_inputs=None, sorted_outputs=None):
     print("Linkability Matrix:\n", linkability_matrix)
     print("Number of Combinations:", num_combinations)
-    print("Sorted Inputs:", sorted_inputs)
-    print("Sorted Outputs:", sorted_outputs)
+    
+    if sorted_inputs is not None:
+        print("Sorted Inputs:", sorted_inputs)
+        
+    if sorted_outputs is not None:
+        print("Sorted Outputs:", sorted_outputs)
+        
     print("--------------------------------------------------------------------------------")
+
+def get_deposit_address(address):
+    url = f"https://mempool.space/testnet/api/address/{address}/txs"
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        print(f"Failed to fetch data for {address}: {response.status_code}")
+        return None
+    
+    try:
+        transactions = response.json()
+    except ValueError:
+        print(f"Invalid JSON response for {address}")
+        return None
+    
+    if not transactions:
+        print(f"No transactions found for address {address}")
+        return None
+
+    txid = transactions[1]['txid'] if len(transactions) > 1 else None
+
+    if not txid:
+        print(f"No valid transaction ID found for address {address}")
+        return None
+    
+    inputs, _, _ = get_transaction_details(txid)
+
+    deposit_addresses = {inp.address for inp in inputs}
+    
+    return list(deposit_addresses)
 
 def process_user_inputs(user_dic):
     for user in user_dic.values():
@@ -111,28 +145,29 @@ def process_user_inputs(user_dic):
         
         for place in range(len(temp_inputs)):
             if temp_inputs[place] not in used_inputs:
-                first_node = temp_inputs[place]
-                path = [] 
+                deposit = get_deposit_address(temp_inputs[place])
+                if deposit:
+                    first_node = temp_inputs[place]
+                    path = [] 
 
-                current_node = first_node
-                while current_node in user.pairs:
-                    next_node = user.pairs[current_node]
-                    path.append(next_node)
-                    used_inputs.append(current_node)  
-                    current_node = next_node
-                
-                if path:
-                    user.txo_path.append({first_node: path})
-        
-    print(user.txo_path)
+                    current_node = first_node
+                    while current_node in user.pairs:
+                        next_node = user.pairs[current_node]
+                        path.append(next_node)
+                        used_inputs.append(current_node)
+                        current_node = next_node
+                    
+                    if path:
+                        user.txo_path.append({'deposit': deposit, first_node: path})
 
 def print_path(user_dic):
     for user in user_dic.values():
         for transaction_zero in user.txo_path:
+            deposit = transaction_zero.pop('deposit')
             for first_node, addresses in transaction_zero.items():
                 result = " -> ".join(addresses)
-                print(f"UserIP={user.ip}: {first_node} -> {result}\n")
-            
+                print(f"UserIP={user.ip}; Deposit {deposit} -> {first_node} -> {result}\n")
+    
 def main():
     mix_dic = {}
     user_dic = {}
