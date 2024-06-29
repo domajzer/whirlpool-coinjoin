@@ -79,3 +79,9 @@ Running the simulation on a remote cluster using pre-existing namespace and a wa
 ```bash
 python manager1.py run --driver kubernetes --namespace custom-coinjoin --wallet containers/bitcoin-testnet-node/wallets/wallet --reuse-namespace --image-prefix "domajzer99/" --scenario "scenario50.json"
 ```
+
+
+## Usage
+
+Analysis script provides a new tool to deanonymize whirlpool coinjoins using data known to the coordiantor. It provides basic analysis with the use of boltzmann tools created by @MT_Lauren and SamouraiDev. 
+It also enables basic tracking of deanonymized UTXOs.

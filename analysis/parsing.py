@@ -277,8 +277,5 @@ def main():
         overall_success_df.to_excel(writer, sheet_name='OverallSuccess', index=False)
         success_over_time_df.to_excel(writer, sheet_name='SuccessOverTime', index=False)
 
-
 if __name__ == "__main__":
     main()
-
-    
