@@ -2,11 +2,12 @@ import pandas as pd
 import requests 
 import mix as MixingClass
 import user as UserClass
+import transaction as TxoClass
 from itertools import product
 from boltzmann.linker.txos_linker import TxosLinker
 import requests
-import transaction as TxoClass
 import time
+import threading
 
 column_names_mix = [
     "ID", "Time_Start", "Time_End", "BTC_Amount", "Transaction_ID",
@@ -141,24 +142,25 @@ def get_deposit_address(address):
 def process_user_inputs(user_dic):
     for user in user_dic.values():
         temp_inputs = user.inputs
-        used_inputs = []
+        used_inputs = set()
         
-        for place in range(len(temp_inputs)):
-            if temp_inputs[place] not in used_inputs:
-                deposit = get_deposit_address(temp_inputs[place])
-                if deposit:
-                    first_node = temp_inputs[place]
-                    path = [] 
-
-                    current_node = first_node
-                    while current_node in user.pairs:
-                        next_node = user.pairs[current_node]
-                        path.append(next_node)
-                        used_inputs.append(current_node)
-                        current_node = next_node
-                    
-                    if path:
+        for first_node in temp_inputs:
+            if first_node not in used_inputs:
+                path = []
+                current_node = first_node
+                
+                while current_node in user.pairs:
+                    next_node = user.pairs[current_node]
+                    path.append(next_node)
+                    used_inputs.add(current_node)
+                    current_node = next_node
+                
+                if path:
+                    deposit = get_deposit_address(first_node)
+                    if deposit:
                         user.txo_path.append({'deposit': deposit, first_node: path})
+                    else:
+                        print(f"Deposit address not found for input: {first_node}")
 
 def print_path(user_dic):
     for user in user_dic.values():
@@ -178,8 +180,15 @@ def main():
 
     poolsize = find_pool_size(poolsize)
     
-    initiate_mixClass(mixs, mix_dic)
-    create_user_wallets(activity, user_dic)
+    thread1 = threading.Thread(target=initiate_mixClass(mixs, mix_dic))
+    thread2 = threading.Thread(target=create_user_wallets(activity, user_dic))
+    
+    thread1.start()
+    thread2.start()
+
+    thread1.join()
+    thread2.join()
+
     for user in user_dic.values():
         for txid in user.transaction_ID:
             txid_split = txid.split(':')
